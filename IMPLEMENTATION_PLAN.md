@@ -323,7 +323,7 @@ The first cloud option is best for this assignment because it demonstrates the e
 ### Repository rules
 
 - Do not implement directly on `main`. `main` is the stable, integrated history only.
-- Create a short-lived branch from the latest `main` for every cohesive flow; commit and push the branch as it is completed, then merge it through a pull request (even for a solo project) after checks pass.
+- Create one branch per phase from the latest `main`; commit each verified slice as it is completed, then merge the branch to `main` once the phase's checks pass.
 - Keep a branch focused on one boundary. Do not mix frontend, backend and ETL changes without a genuine integration reason.
 - One logical change per commit, in imperative Conventional Commit style.
 - Commit tests with the feature they protect; never backfill all tests in one final commit.
@@ -332,22 +332,22 @@ The first cloud option is best for this assignment because it demonstrates the e
 
 ### Branch map
 
-Create branches in this dependency-aware order. Each branch is a small, reviewable flow; merge it before beginning a branch that relies on it.
+One branch per phase, created in this dependency-aware order and merged to `main` before the next begins. Each phase is a single architectural boundary, which is the unit worth reviewing; splitting one boundary across several branches adds merge ceremony without adding review value.
 
-| Branch | Scope | Merge evidence |
-|---|---|---|
-| `chore/project-foundation` | Repository folders, Compose skeleton, environment example, README base and contracts | Compose configuration validates; documentation review. |
-| `feat/oltp-schema` | PostgreSQL migrations and schema tests | Fresh migration succeeds. |
-| `feat/synthetic-sales-data` | Deterministic generator and seed validation | Repeatable count/integrity checks. |
-| `feat/operational-api` | Customer, product and order API flows | API integration tests. |
-| `feat/data-lake-extraction` | PostgreSQL extract, Parquet and immutable MinIO run manifest | Object/manifest validation. |
-| `feat/warehouse-etl` | DuckDB dimensions/facts, transformations and quality checks | Warehouse query and pipeline tests. |
-| `feat/analytics-api` | DuckDB-backed analytics and pipeline-status endpoints | API/warehouse contract tests. |
-| `feat/sales-management-ui` | React customer/product/order flows | UI build and API smoke tests. |
-| `feat/analytics-dashboard` | Dashboard charts and pipeline-control UI | Dashboard build and end-to-end demo. |
-| `chore/quality-and-delivery` | CI, Docker hardening, documentation and deployment guide | Clean-clone Compose smoke test. |
+Granularity is carried by **commits inside** the branch, not by branch count — the planned commit history below is unchanged, and each commit still lands only after its own verification passes.
 
-If a branch needs a targeted corrective change after review, use a narrowly named follow-up branch (for example `fix/order-validation`) rather than committing directly to `main`.
+| Branch | Phase | Scope | Merge evidence |
+|---|---|---|---|
+| `chore/project-foundation` | 1 | Repository folders, Compose skeleton, environment contract, API/data contracts, health endpoint | Merged. Compose validates; OpenAPI lints; health endpoint verified live. |
+| `feat/operational-application` | 2 | PostgreSQL migrations, deterministic synthetic-data generator, customer/product/order APIs | Fresh migration succeeds; seed is repeatable; API integration tests pass. |
+| `feat/lake-and-warehouse-pipeline` | 3 | PostgreSQL extract, immutable run-partitioned Parquet and manifests in MinIO, DuckDB dimensions/facts, quality checks, atomic publish | Object/manifest validation; warehouse query and end-to-end pipeline tests. |
+| `feat/analytics-api` | 4 | DuckDB-backed analytics endpoints and pipeline run/status control | API/warehouse contract tests; analytics proven unable to reach PostgreSQL. |
+| `feat/frontend` | 5 | Sales-management pages, analytics dashboard, pipeline-control panel | UI build, API smoke tests and the end-to-end demo. |
+| `chore/quality-and-delivery` | 6 | CI, Docker hardening, documentation, decision records and deployment guide | Clean-clone Compose smoke test. |
+
+Within a branch, stop and commit at each coherent slice rather than at the end. Phase 2, for example, lands as schema → generator → customers/products → orders, each with its own tests.
+
+If a branch needs a targeted corrective change after it is merged, use a narrowly named follow-up branch (for example `fix/order-validation`) rather than committing directly to `main`.
 
 ### Planned meaningful commit history
 
@@ -381,7 +381,7 @@ Work as an engineer would on a small, reviewable feature—not as a one-shot cod
 4. Inspect `git diff` and `git status`; do not include generated data, secrets, or unrelated files.
 5. Create one descriptive commit using the planned Conventional Commit style.
 6. Push that verified commit to its feature branch on `origin`. Do not wait until the whole project is complete.
-7. Open a pull request into `main`, record the commit hash and completed acceptance criteria, and merge only after checks pass.
+7. When the phase is complete, merge its branch into `main` locally and push, recording the commit hash and the acceptance criteria met. Merge only after the phase's checks pass.
 
 Suggested cadence is one push per completed vertical slice, normally 30–90 minutes of focused work. Examples: schema + migration test, synthetic generator + validation test, customer/product API + API tests, MinIO extraction + manifest validation. Do not create artificial micro-commits for individual files and do not group unrelated features together.
 
@@ -394,7 +394,7 @@ python -m pytest
 docker compose config
 ```
 
-The first push publishes the existing plan commit to `main`. Subsequent implementation pushes go to their corresponding feature branch, followed by a pull request and merge to `main`. This preserves a credible, chronological engineering history and shows how each system boundary was reviewed and integrated.
+The first push publishes the plan commit to `main`. Every subsequent push goes to the current phase's branch, which is merged into `main` when the phase completes. This preserves a credible, chronological engineering history and shows how each system boundary was integrated.
 
 ## 14. Documentation deliverables
 
@@ -431,14 +431,29 @@ The first push publishes the existing plan commit to `main`. Subsequent implemen
 
 ## 16. Immediate next action
 
-Phase 0 is complete: the repository is initialized, the plan and project
-instructions are committed, and `main` is published to `origin`.
+Phases 0 and 1 are complete and merged into `main`:
 
-The current action is Phase 1 on `chore/project-foundation`:
+- Repository, plan and project instructions committed.
+- `chore/project-foundation` delivered the folder structure, the Compose skeleton
+  for PostgreSQL and MinIO, the environment contract, the OpenAPI and
+  architecture contracts, and a dependency-aware `GET /health` endpoint.
 
-1. Repository folders, Compose skeleton and the environment contract — done.
-2. The API and data contracts (`docs/api/openapi.yaml`, `ARCHITECTURE.md`) — done.
-3. A minimal health endpoint and service readiness checks — remaining.
+One item from Phase 1's exit criteria is deliberately outstanding: *migrations
+run from a clean volume*. No schema exists yet, because migrations belong to the
+operational-application boundary. Phase 2 satisfies it.
 
-Then open the pull request into `main`, merge after checks pass, and begin
-`feat/oltp-schema` with the PostgreSQL migrations.
+The current action is Phase 2 on `feat/operational-application`, committed in
+this order:
+
+1. `feat: add PostgreSQL schema migrations` — the five OLTP tables with
+   constraints, plus a migration runner and a fresh-volume migration test.
+2. `feat: add deterministic synthetic sales generator` — fixed-seed generator
+   for 500 customers, 100 products and 10,000+ orders over 12 months, with
+   count and referential-integrity validation.
+3. `feat: add customer and product APIs` — validation, listing and conflict
+   handling against an isolated test database.
+4. `feat: add transactional order APIs` — multi-item orders written atomically,
+   capturing price-at-sale.
+
+Merge the branch into `main` once every slice above passes its checks, then
+begin Phase 3 on `feat/lake-and-warehouse-pipeline`.
