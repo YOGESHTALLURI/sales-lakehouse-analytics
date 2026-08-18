@@ -22,6 +22,7 @@ function main(): void {
 
   const app = createApp({
     pool,
+    warehousePath: config.warehousePath,
     checks: {
       postgres: () => checkPostgres(pool),
       warehouse: () => checkWarehouse(config),

@@ -14,8 +14,8 @@ The HTTP contract lives in [../../docs/api/openapi.yaml](../../docs/api/openapi.
 | `GET /health` | Available — dependency-aware readiness |
 | `POST`/`GET` `/api/customers`, `/api/products`, `/api/orders` | Available |
 | `GET /api/customers/:id`, `/api/products/:id`, `/api/orders/:id` | Available |
-| `/api/pipeline/*` | Phase 4 |
-| `/api/analytics/*` | Phase 4 |
+| `POST /api/pipeline/run`, `GET /api/pipeline/status` | Available |
+| `GET /api/analytics/*` (revenue, sales-by-product, sales-by-city, daily-sales) | Available |
 
 ## Operational endpoints
 
@@ -157,6 +157,49 @@ product per order, status values, window bounds — and prints a report. The
 database would reject most violations anyway, but a failed `INSERT` partway
 through 21,000 rows names one bad row with no context. Nothing is truncated
 until the whole dataset has passed.
+
+## Analytics and the warehouse boundary
+
+Analytics read the DuckDB file and nothing else. The query functions in
+[src/warehouse/analytics.ts](src/warehouse/analytics.ts) take a **warehouse path,
+never a pool**, so there is no operational database in scope to fall back to.
+[tests/warehouse-boundary.test.ts](tests/warehouse-boundary.test.ts) reads the
+source and fails on any import that would reach PostgreSQL — behavioural tests
+cannot catch that, because a fallback would make them all pass.
+
+### Things that would have broken at runtime
+
+Three findings from probing the DuckDB client before writing any queries:
+
+- **Counts come back as `bigint`, which `JSON.stringify` throws on.** `DECIMAL`
+  arrives as `{value, scale}` and `DATE` as `{days}` — both would reach the client
+  as objects. So every query casts explicitly (`::integer`, `::double`,
+  `strftime`), and `toNumber` stays a safety net rather than the main path.
+- **The ETL publishes by renaming over the file, which changes the inode.** A
+  cached DuckDB handle keeps reading the old one and would serve pre-pipeline data
+  forever. The connection is cached but keyed on file identity (inode, size,
+  mtime): a sub-millisecond `stat` per request, a ~20ms reopen only after an
+  actual publish, and a stale dashboard made impossible. Verified live — after a
+  run, `generatedAt` moves.
+- **A missing, empty or corrupt file is `warehouseReady: false`, not an error.**
+  A fresh stack has no warehouse until the first run, and a failed publish can
+  leave a zero-byte file behind.
+
+## Pipeline control
+
+`POST /api/pipeline/run` returns **202** and enqueues the run. The ETL worker
+claims it with `SELECT ... FOR UPDATE SKIP LOCKED` and executes it.
+
+The API deliberately does not run the pipeline itself. In-process would put Python
+in the Node image and block a request for the length of a full extract. Starting a
+container would require mounting the Docker socket, handing an internet-facing
+service root-equivalent control of the host. So `pipeline_runs` doubles as the
+queue and the audit trail, and a run's history is never split across two systems.
+
+That table lives in PostgreSQL, which is not a boundary violation: it is
+operational state about the platform, it must survive the warehouse file being
+replaced on every publish, and it must be able to report a **failed** run — which
+a warehouse-resident record could not, since a failed run publishes nothing.
 
 ## Design notes
 

@@ -1,6 +1,7 @@
 """One full, observable pipeline run.
 
-    python -m etl.run_pipeline
+    python -m etl.run_pipeline          # claim a slot and run now
+    python -m etl.worker                # execute runs queued by the API
 
 The order of operations is the contract described in IMPLEMENTATION_PLAN.md §5,
 and each step exists for a reason worth stating:
@@ -18,6 +19,9 @@ Step 5 is the one people skip. Building the warehouse from the snapshot still in
 memory would be faster and would make the lake a decorative copy that nothing
 depends on — so a broken round trip would go unnoticed until someone needed the
 raw history.
+
+`execute_run` is separated from `main` so the worker can run an already-claimed
+run without duplicating any of this, and so a test can drive one run directly.
 """
 
 from __future__ import annotations
@@ -28,8 +32,10 @@ import sys
 import tempfile
 from pathlib import Path
 
+from sqlalchemy import Engine
+
 from .audit import ConcurrentRunError, complete_run, fail_run, release_stale_running_runs, start_run
-from .config import ConfigError, load_config
+from .config import Config, ConfigError, load_config
 from .extract import create_postgres_engine, extract_snapshot
 from .lake import create_s3_client, download_run, upload_run, utc_now
 from .warehouse import build_and_publish
@@ -39,55 +45,14 @@ LOG_FORMAT = "[etl] %(message)s"
 logger = logging.getLogger("etl")
 
 
-def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        prog="python -m etl.run_pipeline",
-        description=(
-            "Extract PostgreSQL into an immutable Parquet run in MinIO, then rebuild "
-            "the DuckDB warehouse from that run and publish it atomically."
-        ),
-    )
-    parser.add_argument(
-        "--release-stale",
-        action="store_true",
-        help=(
-            "Mark any run still marked 'running' as failed before starting. Use after a "
-            "container was killed mid-run and is blocking the single active-run slot."
-        ),
-    )
-    parser.add_argument("--verbose", action="store_true", help="Log every step in detail.")
-    return parser.parse_args(argv)
+def execute_run(engine: Engine, config: Config, run_id: str) -> int:
+    """Perform the run identified by `run_id`, which must already be claimed.
 
-
-def main(argv: list[str] | None = None) -> int:
-    args = _parse_args(argv)
-    logging.basicConfig(
-        level=logging.DEBUG if args.verbose else logging.INFO,
-        format=LOG_FORMAT,
-        stream=sys.stdout,
-    )
-
-    try:
-        config = load_config()
-    except ConfigError as error:
-        logger.error("%s", error)
-        return 1
-
-    engine = create_postgres_engine(config.postgres)
-
-    if args.release_stale:
-        released = release_stale_running_runs(engine)
-        logger.info("released %d stale run(s)", released)
-
-    try:
-        run_record = start_run(engine)
-    except ConcurrentRunError as error:
-        logger.error("%s", error)
-        return 2
-
-    run_id = run_record.run_id
-    logger.info("run %s started", run_id)
-
+    Returns a process exit code: 0 on success, 1 on failure. Failures are recorded
+    in `pipeline_runs` rather than raised, because the audit record is the only
+    trace a failed run leaves and the caller may be a long-lived worker that must
+    survive it.
+    """
     lake_prefix: str | None = None
 
     try:
@@ -102,8 +67,8 @@ def main(argv: list[str] | None = None) -> int:
         client = create_s3_client(config.lake)
 
         # One temporary directory for the whole run: Parquet is written here,
-        # uploaded, then downloaded back into a separate subdirectory so the
-        # round trip cannot accidentally read the file it just wrote.
+        # uploaded, then downloaded back into a separate subdirectory so the round
+        # trip cannot accidentally read the file it just wrote.
         with tempfile.TemporaryDirectory(prefix=f"etl-{run_id}-") as workspace:
             staging = Path(workspace) / "staging"
             replay = Path(workspace) / "replay"
@@ -158,13 +123,62 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     except Exception as error:
-        # The audit record is the only trace a failed run leaves, so recording it
-        # matters more than the traceback. Both are emitted.
         fail_run(engine, run_id, error, lake_prefix=lake_prefix)
         logger.error("run %s failed: %s", run_id, error)
         logger.debug("traceback", exc_info=True)
         return 1
 
+
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="python -m etl.run_pipeline",
+        description=(
+            "Extract PostgreSQL into an immutable Parquet run in MinIO, then rebuild "
+            "the DuckDB warehouse from that run and publish it atomically."
+        ),
+    )
+    parser.add_argument(
+        "--release-stale",
+        action="store_true",
+        help=(
+            "Mark any unfinished run as failed before starting. Use after a container "
+            "was killed mid-run and is blocking the single active-run slot."
+        ),
+    )
+    parser.add_argument("--verbose", action="store_true", help="Log every step in detail.")
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parse_args(argv)
+    logging.basicConfig(
+        level=logging.DEBUG if args.verbose else logging.INFO,
+        format=LOG_FORMAT,
+        stream=sys.stdout,
+    )
+
+    try:
+        config = load_config()
+    except ConfigError as error:
+        logger.error("%s", error)
+        return 1
+
+    engine = create_postgres_engine(config.postgres)
+
+    if args.release_stale:
+        released = release_stale_running_runs(engine)
+        logger.info("released %d stale run(s)", released)
+
+    try:
+        run_record = start_run(engine)
+    except ConcurrentRunError as error:
+        logger.error("%s", error)
+        return 2
+
+    logger.info("run %s started", run_record.run_id)
+
+    try:
+        return execute_run(engine, config, run_record.run_id)
     finally:
         engine.dispose()
 

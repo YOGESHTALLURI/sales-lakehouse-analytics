@@ -10,7 +10,7 @@ This document is deliberately written before application code. It is the impleme
 
 - GitHub repository: <https://github.com/YOGESHTALLURI/sales-lakehouse-analytics>
 - Default branch: `main`
-- Current local state: Phases 0-2 are merged into `main`. Phase 3 is complete on `feat/lake-and-warehouse-pipeline`. Phase 5 (frontend) is being built in parallel on `feat/frontend` against the OpenAPI contract - see docs/frontend-brief.md.
+- Current local state: Phases 0-3 are merged into `main`. Phase 4 is complete on `feat/analytics-api`. Phase 5 (frontend) is complete on `feat/frontend`, built in parallel against the OpenAPI contract - see docs/frontend-brief.md.
 - Phase 0 committed planning material only. Phase 1 added the folder structure, the Compose skeleton, the environment contract, the API and architecture contracts, and the health endpoint. Phase 2 adds continuous integration, the OLTP schema, the synthetic-data generator and the operational APIs.
 
 ### Non-negotiable engineering goals

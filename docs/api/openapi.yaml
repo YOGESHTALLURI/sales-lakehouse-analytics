@@ -288,20 +288,27 @@ paths:
       tags: [Pipeline]
       summary: Start one ETL run
       description: |
-        Delegates a full extract -> lake -> warehouse run to the ETL service
-        and returns immediately with the accepted run. Only one run may be
-        active at a time; a second request while a run is `running` is rejected
+        Enqueues a full extract -> lake -> warehouse run for the ETL worker and
+        returns immediately with the accepted run. Only one run may be active at
+        a time; a second request while one is `queued` or `running` is rejected
         with `409`.
+
+        Poll `GET /api/pipeline/status` until `current.status` is `succeeded` or
+        `failed`.
       operationId: runPipeline
       responses:
         '202':
-          description: The run was accepted and is now `running`.
+          description: |
+            The run was accepted and is now `queued`. It becomes `running` when the
+            ETL worker claims it, usually within a couple of seconds.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/PipelineRun'
         '409':
-          description: A pipeline run is already in progress.
+          description: |
+            A run is already `queued` or `running`. Enforced by a partial unique
+            index, so two API replicas cannot both accept a run.
           content:
             application/json:
               schema:
@@ -777,7 +784,15 @@ components:
 
     PipelineRunStatus:
       type: string
-      enum: [running, succeeded, failed]
+      enum: [queued, running, succeeded, failed]
+      description: |
+        `queued` — accepted by the API, awaiting the ETL worker. The API does not
+        execute the pipeline itself: running it in-process would put Python in
+        the Node image, and starting a container would require the Docker socket.
+        `running` — the worker is executing it. Then `succeeded` or `failed`.
+
+        A client polling for completion should treat `queued` and `running`
+        alike: both mean a run is in flight.
 
     PipelineRun:
       type: object

@@ -1,5 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { migrate, readAppliedMigrations } from '../../src/db/migrations.js';
+import {
+  defaultMigrationsDir,
+  loadMigrations,
+  migrate,
+  readAppliedMigrations,
+} from '../../src/db/migrations.js';
 import {
   assertPostgresReachable,
   createTemporaryDatabase,
@@ -80,17 +85,23 @@ describe('migrations against a clean database', () => {
   });
 
   it('records what it applied', async () => {
-    const applied = await readAppliedMigrations(db.pool);
+    const [applied, files] = await Promise.all([
+      readAppliedMigrations(db.pool),
+      loadMigrations(defaultMigrationsDir()),
+    ]);
 
-    expect(applied.map((m) => m.version)).toEqual([1, 2, 3]);
+    // Derived from the committed files rather than hardcoded: a new migration
+    // must not fail an assertion that has nothing to do with it.
+    expect(applied.map((m) => m.version)).toEqual(files.map((f) => f.version));
     expect(applied.every((m) => m.checksum.length === 64)).toBe(true);
   });
 
   it('is idempotent — a second run applies nothing', async () => {
+    const expected = (await loadMigrations(defaultMigrationsDir())).length;
     const result = await migrate(db.pool);
 
     expect(result.applied).toEqual([]);
-    expect(result.alreadyApplied).toBe(3);
+    expect(result.alreadyApplied).toBe(expected);
   });
 
   it('stores money as numeric, never floating point', async () => {

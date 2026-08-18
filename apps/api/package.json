@@ -16,6 +16,7 @@
     "test:integration": "vitest run --config vitest.integration.config.ts"
   },
   "dependencies": {
+    "@duckdb/node-api": "^1.5.5-r.4",
     "express": "^5.1.0",
     "pg": "^8.13.0",
     "zod": "^3.24.0"

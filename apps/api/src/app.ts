@@ -3,10 +3,13 @@ import type { Pool } from 'pg';
 import type { DependencyChecks } from './dependencies/types.js';
 import { ApiError } from './http/errors.js';
 import { createHealthRouter } from './routes/health.js';
+import { createAnalyticsRouter } from './routes/analytics.js';
 import { createOperationalRouter } from './routes/operational.js';
 
 export interface AppOptions {
   checks: DependencyChecks;
+  /** Path to the published DuckDB file. Analytics routes mount only when set. */
+  warehousePath?: string;
   /**
    * OLTP pool for the operational routes. Omit to mount only /health, which is
    * how the health specs avoid needing a database.
@@ -21,7 +24,7 @@ export interface AppOptions {
  * tests can drive every outcome, and so later phases can add routes without this
  * factory learning how each store is reached.
  */
-export function createApp({ checks, pool }: AppOptions): Express {
+export function createApp({ checks, pool, warehousePath }: AppOptions): Express {
   const app = express();
 
   app.disable('x-powered-by');
@@ -31,6 +34,10 @@ export function createApp({ checks, pool }: AppOptions): Express {
 
   if (pool) {
     app.use(createOperationalRouter(pool));
+
+    if (warehousePath) {
+      app.use(createAnalyticsRouter({ warehousePath, pool }));
+    }
   }
 
   app.use((_request: Request, response: Response) => {

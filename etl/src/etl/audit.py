@@ -154,8 +154,10 @@ def sanitise_error(error: BaseException) -> str:
 def release_stale_running_runs(engine: Engine) -> int:
     """Mark abandoned runs failed so the active-run slot is not blocked forever.
 
-    A container killed mid-run leaves `running` behind with nothing to finish it.
-    Without this, every later run would be rejected as concurrent.
+    A container killed mid-run leaves `running` behind with nothing to finish it,
+    and a run enqueued while no worker was up leaves `queued`. Both occupy the
+    single-active-run slot, so both must be releasable.
+    Otherwise every later run would be rejected as concurrent.
     """
     with engine.begin() as connection:
         result = connection.execute(
@@ -165,7 +167,7 @@ def release_stale_running_runs(engine: Engine) -> int:
                    set status = 'failed',
                        completed_at = now(),
                        error_summary = 'Run abandoned: no process completed it.'
-                 where status = 'running'
+                 where status in ('queued', 'running')
                 """
             )
         )
