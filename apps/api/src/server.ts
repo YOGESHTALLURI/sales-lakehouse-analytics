@@ -21,6 +21,7 @@ function main(): void {
   const pool = createPostgresPool(config);
 
   const app = createApp({
+    pool,
     checks: {
       postgres: () => checkPostgres(pool),
       warehouse: () => checkWarehouse(config),

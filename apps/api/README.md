@@ -12,9 +12,49 @@ The HTTP contract lives in [../../docs/api/openapi.yaml](../../docs/api/openapi.
 | Endpoint | Status |
 |---|---|
 | `GET /health` | Available — dependency-aware readiness |
-| `/api/customers`, `/api/products`, `/api/orders` | Phase 2, in progress |
+| `POST`/`GET` `/api/customers`, `/api/products`, `/api/orders` | Available |
+| `GET /api/customers/:id`, `/api/products/:id`, `/api/orders/:id` | Available |
 | `/api/pipeline/*` | Phase 4 |
 | `/api/analytics/*` | Phase 4 |
+
+## Operational endpoints
+
+PostgreSQL only. The layering is deliberate:
+
+- **`schemas/`** — Zod schemas mirroring the OpenAPI contract. Every bound matches
+  a documented constraint and, where the database enforces it too, the
+  corresponding `CHECK`. A path parameter is validated before it reaches SQL,
+  otherwise a malformed UUID comes back as an invalid-input-syntax error and a
+  client mistake surfaces as a 500.
+- **`repositories/`** — all SQL. Nothing here may be reused by an analytics
+  endpoint; those read the warehouse.
+- **`routes/operational.ts`** — parse, delegate, respond. Express 5 forwards a
+  rejected handler promise to the error handler, so routes throw `ApiError` and
+  one place renders the envelope.
+
+### Choices worth knowing
+
+- **Conflicts are detected by the database, not by a prior read.** A
+  check-then-insert pair has a race window where two concurrent requests both
+  see nothing and both insert. `POST` inserts and translates PostgreSQL's
+  `23505` into the documented `409`, which cannot race.
+- **Order creation is one transaction**, and products are locked `for share`
+  while it runs, so a product cannot be retired between validation and insert.
+  An order that existed without its items would be revenue the warehouse could
+  never account for.
+- **A retired product is a `409`, not a `400`.** The request is well formed; it
+  conflicts with the current state of the catalogue. The contract was extended
+  with `product_inactive` rather than bending `400` to fit.
+- **`order_date` is selected as text.** `pg` would otherwise parse a `date` into
+  a JS `Date` at local midnight, shifting the calendar day for anyone west of
+  UTC. A test asserts the stored day survives.
+- **Money crosses the boundary once.** `numeric` arrives as a string; line and
+  order totals are computed by PostgreSQL in `numeric` and converted to a JSON
+  number at the very edge, so no total depends on floating-point multiplication
+  in JavaScript.
+- **A duplicated product is rejected with the offending index.** `order_items`
+  has a unique `(order_id, product_id)`, so a repeat must arrive as a larger
+  quantity; naming `items.1.productId` beats surfacing a raw constraint name.
 
 ## Migrations
 

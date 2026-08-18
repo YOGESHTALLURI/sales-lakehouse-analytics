@@ -263,7 +263,19 @@ paths:
         '400':
           $ref: '#/components/responses/ValidationError'
         '404':
-          description: The customer or one of the products does not exist.
+          description: |
+            The customer does not exist (`customer_not_found`), or one of the
+            products does not exist (`product_not_found`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: |
+            One of the products exists but is retired (`product_inactive`). The
+            request is well formed; it conflicts with the current state of the
+            catalogue, so it is a conflict rather than a validation failure.
+            Existing orders keep their retired products.
           content:
             application/json:
               schema:

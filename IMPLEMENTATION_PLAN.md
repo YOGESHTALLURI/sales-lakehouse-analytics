@@ -10,7 +10,7 @@ This document is deliberately written before application code. It is the impleme
 
 - GitHub repository: <https://github.com/YOGESHTALLURI/sales-lakehouse-analytics>
 - Default branch: `main`
-- Current local state: Phases 0 and 1 are merged into `main`. Phase 2 is in progress on `feat/operational-application`.
+- Current local state: Phases 0 and 1 are merged into `main`. Phase 2 is complete on `feat/operational-application` and ready to merge.
 - Phase 0 committed planning material only. Phase 1 added the folder structure, the Compose skeleton, the environment contract, the API and architecture contracts, and the health endpoint. Phase 2 adds continuous integration, the OLTP schema, the synthetic-data generator and the operational APIs.
 
 ### Non-negotiable engineering goals
@@ -447,18 +447,25 @@ One item from Phase 1's exit criteria is deliberately outstanding: *migrations
 run from a clean volume*. No schema exists yet, because migrations belong to the
 operational-application boundary. Phase 2 satisfies it.
 
-The current action is Phase 2 on `feat/operational-application`, committed in
-this order:
+Phase 2 is complete on `feat/operational-application`, delivered in this order:
 
-1. `feat: add PostgreSQL schema migrations` — the five OLTP tables with
-   constraints, plus a migration runner and a fresh-volume migration test.
-2. `feat: add deterministic synthetic sales generator` — fixed-seed generator
-   for 500 customers, 100 products and 10,000+ orders over 12 months, with
-   count and referential-integrity validation.
-3. `feat: add customer and product APIs` — validation, listing and conflict
-   handling against an isolated test database.
-4. `feat: add transactional order APIs` — multi-item orders written atomically,
-   capturing price-at-sale.
+1. `ci: run typecheck, tests and migrations on every push` — CI brought forward
+   from Phase 6, so every later phase is validated as it lands.
+2. `feat: add PostgreSQL schema migrations` — the five OLTP tables with their
+   constraints, a migration runner, and a fresh-database migration suite. This
+   also satisfied Phase 1's outstanding *migrations run from a clean volume*.
+3. `feat: add deterministic synthetic sales generator` — fixed-seed generator for
+   500 customers, 100 products and 10,000 orders over 12 months, with a
+   validation report and a checksum test locking reproducibility.
+4. `feat: add operational customer, product and order APIs` — Zod validation,
+   database-arbitrated conflicts, and multi-item orders written in one
+   transaction capturing price-at-sale.
 
-Merge the branch into `main` once every slice above passes its checks, then
-begin Phase 3 on `feat/lake-and-warehouse-pipeline`.
+Phase 2's exit criteria are met: every core entity can be created and listed,
+orders cannot violate the documented business constraints, and the tests pass.
+
+Merge the branch into `main`, then begin Phase 3 on
+`feat/lake-and-warehouse-pipeline`. Phase 3 introduces the Python ETL and the
+`etl` Compose service, extracts a consistent PostgreSQL snapshot into immutable
+run-partitioned Parquet in MinIO with a manifest, then rebuilds the DuckDB star
+schema *from the lake* and publishes it atomically.

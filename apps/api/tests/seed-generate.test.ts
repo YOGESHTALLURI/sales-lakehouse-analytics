@@ -164,47 +164,51 @@ describe('database constraints are respected up front', () => {
     expect(new Set(skus).size).toBe(skus.length);
   });
 
+  // These scan 21,000 rows. Counting violations and asserting the count beats
+  // an expect() per row: it reports "37 rows are wrong" instead of stopping at
+  // the first, and it does not build 21,000 assertion objects to say so.
+
   it('never repeats a product within one order', () => {
     const seen = new Set<string>();
-
-    for (const item of dataset.orderItems) {
+    const duplicates = dataset.orderItems.filter((item) => {
       const key = `${item.orderId}:${item.productId}`;
-      expect(seen.has(key)).toBe(false);
+      if (seen.has(key)) return true;
       seen.add(key);
-    }
+      return false;
+    });
+
+    expect(duplicates).toEqual([]);
   });
 
   it('uses only statuses the schema allows', () => {
     const allowed = new Set(['pending', 'confirmed', 'shipped', 'delivered', 'cancelled']);
+    const unknown = [...new Set(dataset.orders.map((o) => o.status))].filter(
+      (status) => !allowed.has(status),
+    );
 
-    for (const order of dataset.orders) {
-      expect(allowed.has(order.status)).toBe(true);
-    }
+    expect(unknown).toEqual([]);
   });
 
   it('writes money as fixed two-decimal strings', () => {
-    for (const product of dataset.products) {
-      expect(product.unitPrice).toMatch(/^\d+\.\d{2}$/);
-    }
-    for (const item of dataset.orderItems) {
-      expect(item.unitPriceAtSale).toMatch(/^\d+\.\d{2}$/);
-    }
+    const money = /^\d+\.\d{2}$/;
+
+    expect(dataset.products.filter((p) => !money.test(p.unitPrice))).toEqual([]);
+    expect(dataset.orderItems.filter((i) => !money.test(i.unitPriceAtSale))).toEqual([]);
   });
 
   it('never sells an inactive product', () => {
     const inactive = new Set(dataset.products.filter((p) => !p.active).map((p) => p.id));
 
     expect(inactive.size).toBeGreaterThan(0);
-    for (const item of dataset.orderItems) {
-      expect(inactive.has(item.productId)).toBe(false);
-    }
+    expect(dataset.orderItems.filter((i) => inactive.has(i.productId))).toEqual([]);
   });
 
   it('keeps every order date inside the requested window', () => {
-    for (const order of dataset.orders) {
-      expect(order.orderDate >= '2025-08-24').toBe(true);
-      expect(order.orderDate <= '2026-08-18').toBe(true);
-    }
+    const outside = dataset.orders.filter(
+      (o) => o.orderDate < '2025-08-24' || o.orderDate > '2026-08-18',
+    );
+
+    expect(outside).toEqual([]);
   });
 });
 

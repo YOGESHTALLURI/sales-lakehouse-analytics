@@ -28,12 +28,19 @@ describe('SeededRandom', () => {
 
   it('stays within [0, 1)', () => {
     const random = new SeededRandom(7);
+    let min = Number.POSITIVE_INFINITY;
+    let max = Number.NEGATIVE_INFINITY;
 
+    // Track the extremes rather than asserting per draw: two assertions convey
+    // the same guarantee as ten thousand, and report the actual bound that broke.
     for (let i = 0; i < 5_000; i++) {
       const value = random.next();
-      expect(value).toBeGreaterThanOrEqual(0);
-      expect(value).toBeLessThan(1);
+      if (value < min) min = value;
+      if (value > max) max = value;
     }
+
+    expect(min).toBeGreaterThanOrEqual(0);
+    expect(max).toBeLessThan(1);
   });
 
   it('spreads roughly uniformly across ten buckets', () => {

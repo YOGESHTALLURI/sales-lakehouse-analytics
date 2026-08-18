@@ -45,7 +45,7 @@ feature branch and merges to `main` only after its checks pass.
 |---|---|---|
 | 0 | Repository and implementation plan | Complete |
 | 1 | Foundation: folders, Compose skeleton, environment and API contracts, health endpoint | Complete |
-| 2 | Operational application: migrations, synthetic data, customer/product/order APIs | In progress |
+| 2 | Operational application: migrations, synthetic data, customer/product/order APIs | Complete |
 | 3 | Lake and warehouse pipeline | Not started |
 | 4 | Analytics and pipeline-control APIs | Not started |
 | 5 | Frontend: sales pages and analytics dashboard | Not started |
@@ -133,6 +133,8 @@ npm test                              # Vitest across the workspace
 # Phase 2 — operational application
 docker compose exec api npm run migrate   # apply OLTP schema migrations
 docker compose exec api npm run seed      # generate and load synthetic sales data
+curl -s localhost:4000/api/customers?limit=2   # operational endpoints
+curl -s localhost:4000/api/orders?limit=1
 
 # Phase 3 — pipeline (not yet available)
 docker compose run --rm etl python -m etl.run_pipeline
