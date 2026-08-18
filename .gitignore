@@ -1,0 +1,55 @@
+# ─── Secrets and local environment ───────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ─── Node / TypeScript ───────────────────────────────────────────────────────
+node_modules/
+dist/
+build/
+.vite/
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ─── Test and coverage output ────────────────────────────────────────────────
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+
+# ─── Python / ETL ────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+
+# ─── Generated warehouse (DuckDB is a build artefact, never committed) ───────
+*.duckdb
+*.duckdb.wal
+*.duckdb.tmp
+data/warehouse/*
+!data/warehouse/README.md
+
+# ─── Generated lake runs and synthetic datasets ──────────────────────────────
+data/lake/
+*.parquet
+!etl/tests/fixtures/**/*.parquet
+tmp/
+.tmp/
+
+# ─── Docker / local volume mounts ────────────────────────────────────────────
+docker-volumes/
+
+# ─── OS and editor noise ─────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
