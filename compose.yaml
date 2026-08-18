@@ -4,14 +4,15 @@
 #   cp .env.example .env
 #   docker compose up -d
 #
-# Phase 1 provisions the two stateful boundaries of the platform:
+# Phase 1 provisions the two stateful boundaries of the platform plus the API:
 #
 #   postgres  — OLTP system of record
 #   minio     — immutable raw data lake (S3-compatible)
+#   api       — Express service; only /health exists so far
 #
-# The `api`, `web` and `etl` services are introduced by the phases that own
-# them (see IMPLEMENTATION_PLAN.md §9) so that `docker compose up` succeeds at
-# every point in the repository history.
+# The `web` and `etl` services are introduced by the phases that own them (see
+# IMPLEMENTATION_PLAN.md §9) so that `docker compose up` succeeds at every point
+# in the repository history.
 # =============================================================================
 
 name: sales-lakehouse
@@ -82,11 +83,50 @@ services:
     networks:
       - sales-net
 
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: dev
+    container_name: sales-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Fixed inside the container; only the published host port is configurable.
+      API_PORT: 4000
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      WAREHOUSE_PATH: ${WAREHOUSE_PATH:-/warehouse/sales.duckdb}
+    ports:
+      - "${API_HOST_PORT:-4000}:4000"
+    volumes:
+      # Read-only: the ETL is the only writer of the warehouse, and a read-only
+      # mount makes it impossible for the API to corrupt it.
+      - warehouse-data:/warehouse:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:4000/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    networks:
+      - sales-net
+
 volumes:
   postgres-data:
     name: sales-lakehouse-postgres-data
   minio-data:
     name: sales-lakehouse-minio-data
+  # Shared only between api (read-only) and etl (exclusive writer).
+  warehouse-data:
+    name: sales-lakehouse-warehouse-data
 
 networks:
   sales-net:

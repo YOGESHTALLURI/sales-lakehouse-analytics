@@ -44,7 +44,7 @@ feature branch and merges to `main` only after its checks pass.
 | Phase | Scope | State |
 |---|---|---|
 | 0 | Repository and implementation plan | Complete |
-| 1 | Foundation: folders, Compose skeleton, environment and API contracts, health endpoint | In progress |
+| 1 | Foundation: folders, Compose skeleton, environment and API contracts, health endpoint | Complete |
 | 2 | Operational application: migrations, synthetic data, customer/product/order APIs | Not started |
 | 3 | Lake and warehouse pipeline | Not started |
 | 4 | Analytics and pipeline-control APIs | Not started |
@@ -70,18 +70,26 @@ Verified against Docker 29.6, Compose v5.3, Node 24 and PostgreSQL 16.
 git clone https://github.com/YOGESHTALLURI/sales-lakehouse-analytics.git
 cd sales-lakehouse-analytics
 cp .env.example .env          # local placeholders only; never commit .env
-docker compose up -d          # starts PostgreSQL, MinIO and the bucket init job
-docker compose ps
+docker compose up -d --build  # starts PostgreSQL, MinIO, the bucket init job and the API
+sh scripts/wait-for-services.sh   # blocks until each service can actually serve
 ```
 
-Expected result: `postgres` and `minio` report `healthy`, and `minio-init`
-exits `0` after creating the `sales-lake` bucket.
+Expected result: `postgres`, `minio` and `api` report `healthy`, and
+`minio-init` exits `0` after creating the `sales-lake` bucket. On Windows use
+`./scripts/wait-for-services.ps1` instead.
 
 | Service | URL | Notes |
 |---|---|---|
+| API | <http://localhost:4000/health> | Dependency-aware readiness |
 | PostgreSQL | `localhost:55432` | Credentials from `.env` |
 | MinIO S3 API | <http://localhost:9000> | Used by the ETL |
 | MinIO console | <http://localhost:9001> | Sign in with `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` |
+
+`/health` returns `200` with `"status": "ok"` once PostgreSQL is reachable. The
+warehouse reports `down` with `"warehouse not published yet"` until the first
+pipeline run — that is expected on a fresh stack, not a fault, so it does not
+fail readiness. If PostgreSQL goes away the API stays up and returns `503`
+`"degraded"`, then recovers on its own when PostgreSQL returns.
 
 Shut down, keeping data:
 
@@ -98,11 +106,15 @@ docker compose down -v
 ## Commands
 
 ```bash
-# Phase 1 — infrastructure and contracts
+# Phase 1 — infrastructure, contracts and health
 docker compose config                 # validate the Compose contract
-docker compose up -d                  # start PostgreSQL + MinIO
+docker compose up -d --build          # start PostgreSQL, MinIO and the API
 docker compose logs -f minio-init     # confirm the lake bucket was created
+sh scripts/wait-for-services.sh       # wait until services can serve traffic
+curl -s http://localhost:4000/health  # dependency-aware readiness
 npx @redocly/cli@1 lint docs/api/openapi.yaml   # validate the API contract
+npm run typecheck                     # TypeScript across the workspace
+npm test                              # Vitest across the workspace
 
 # Phase 2 — operational application (not yet available)
 docker compose exec api npm run migrate
@@ -143,10 +155,16 @@ Each language keeps its own idiomatic tooling; see
 [IMPLEMENTATION_PLAN.md §10](IMPLEMENTATION_PLAN.md) for the full strategy.
 
 ```bash
-npm test --workspace apps/api      # Vitest + Supertest (from Phase 1)
-npm test --workspace apps/web      # Vitest (from Phase 5)
+npm install                                    # once, from the repository root
+npm run typecheck                              # TypeScript, all workspaces
+npm test                                       # Vitest, all workspaces
+npm test --workspace @sales-lakehouse/api      # API only (Vitest + Supertest)
 docker compose run --rm etl python -m pytest   # pytest (from Phase 3)
 ```
+
+The API suite needs no running services: dependency probes are injected, so
+every `/health` outcome — ready, warehouse-missing, database-down — is covered
+without Docker.
 
 ## Troubleshooting
 
@@ -156,7 +174,9 @@ docker compose run --rm etl python -m pytest   # pytest (from Phase 3)
 | Port 5432 / 9000 / 9001 already allocated | Another service owns the port. Change `POSTGRES_HOST_PORT`, `MINIO_API_HOST_PORT` or `MINIO_CONSOLE_HOST_PORT` in `.env`. |
 | `minio-init` exits non-zero | MinIO was not healthy yet, or the root credentials in `.env` disagree with the existing `minio-data` volume. Check `docker compose logs minio-init`. |
 | PostgreSQL rejects the password after changing `.env` | Credentials are baked in at volume initialisation. `docker compose down -v` then `up -d` to reinitialise. |
-| `docker compose up -d --wait` exits `1` although every service is healthy | `--wait` treats the one-shot `minio-init` container as a failure when it exits. Use plain `docker compose up -d` and check `docker compose ps`. |
+| `docker compose up -d --wait` exits `1` although every service is healthy | `--wait` treats the one-shot `minio-init` container as a failure when it exits. Use plain `docker compose up -d` and `sh scripts/wait-for-services.sh`. |
+| `/health` returns `503` with `"warehouse": "down"` only | Not an error. PostgreSQL is down — check `docker compose ps postgres`. A `down` warehouse alone still returns `200`. |
+| API cannot reach PostgreSQL from the host | The API talks to `postgres:5432` on the Compose network, not `localhost:55432`. Only change `POSTGRES_HOST` when running the API outside Docker. |
 
 ## Documentation
 
