@@ -18,6 +18,10 @@ permissions:
 
 env:
   NODE_VERSION: '22'
+  PYTHON_VERSION: '3.12'
+  # Pinned to match compose.yaml, so CI exercises the same images as local dev.
+  MINIO_IMAGE: 'minio/minio:RELEASE.2025-04-22T22-12-26Z'
+  MC_IMAGE: 'minio/mc:RELEASE.2025-08-13T08-35-41Z'
 
 jobs:
   # Everything that needs no running service. Fast, so it fails first.
@@ -54,6 +58,28 @@ jobs:
         run: |
           cp .env.example .env
           docker compose config --quiet
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: etl/pyproject.toml
+
+      - name: Install the ETL package
+        run: pip install -e "./etl[dev]"
+
+      - name: Lint and format-check the ETL
+        run: |
+          ruff check etl/src etl/tests
+          ruff format --check etl/src etl/tests
+
+      - name: ETL unit tests
+        # These need no services: snapshots are built in memory and warehouses in
+        # a temp directory, so they belong in the fast job.
+        # Run from etl/ so pyproject testpaths and conftest resolve exactly as
+        # they do in the container, which is where this was verified.
+        working-directory: etl
+        run: python -m pytest -q
 
   # Anything that needs a real PostgreSQL. Runs it as a service container rather
   # than through Compose: the runner only needs the database, not the whole stack.
@@ -119,3 +145,119 @@ jobs:
         # Each spec provisions its own throwaway database, so these are
         # unaffected by the migrations and seed applied above.
         run: npm run test:integration --workspace @sales-lakehouse/api
+
+  # The whole pipeline against real services: PostgreSQL, MinIO, an immutable
+  # Parquet run, and a DuckDB warehouse built from it. This is the job that proves
+  # the boundaries actually compose, rather than each module working alone.
+  pipeline:
+    name: End-to-end pipeline
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: sales
+          POSTGRES_USER: sales_app
+          POSTGRES_PASSWORD: ci_local_password
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U sales_app -d sales"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    env:
+      POSTGRES_DB: sales
+      POSTGRES_USER: sales_app
+      POSTGRES_PASSWORD: ci_local_password
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 55432
+      POSTGRES_HOST_PORT: 55432
+      MINIO_ROOT_USER: ci_minio_user
+      MINIO_ROOT_PASSWORD: ci_minio_password
+      MINIO_ENDPOINT: http://localhost:9000
+      LAKE_BUCKET: sales-lake
+      LAKE_RAW_PREFIX: raw
+      ETL_INTEGRATION: '1'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # MinIO is started with `docker run` rather than as a service container:
+      # service containers cannot pass the `server /data` argument the image
+      # needs, and overriding the entrypoint to work around that is less legible
+      # than starting it explicitly.
+      - name: Start MinIO
+        run: |
+          docker run -d --name minio \
+            -p 9000:9000 -p 9001:9001 \
+            -e MINIO_ROOT_USER="$MINIO_ROOT_USER" \
+            -e MINIO_ROOT_PASSWORD="$MINIO_ROOT_PASSWORD" \
+            "$MINIO_IMAGE" server /data --console-address ":9001"
+
+          for attempt in $(seq 1 30); do
+            if curl -sf http://localhost:9000/minio/health/live; then
+              echo "minio ready after ${attempt} attempt(s)"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "MinIO did not become ready" >&2
+          docker logs minio >&2
+          exit 1
+
+      - name: Create the lake bucket
+        # Reuses the same script Compose runs, so CI cannot drift from local dev.
+        run: |
+          docker run --rm --network host \
+            -e MINIO_ENDPOINT="$MINIO_ENDPOINT" \
+            -e MINIO_ROOT_USER="$MINIO_ROOT_USER" \
+            -e MINIO_ROOT_PASSWORD="$MINIO_ROOT_PASSWORD" \
+            -e LAKE_BUCKET="$LAKE_BUCKET" \
+            -v "$PWD/infra/minio/create-bucket.sh:/create-bucket.sh:ro" \
+            --entrypoint sh "$MC_IMAGE" /create-bucket.sh
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: etl/pyproject.toml
+
+      - name: Install both workspaces
+        run: |
+          npm ci
+          pip install -e "./etl[dev]"
+
+      - name: Prepare the operational database
+        # The pipeline needs data to extract, and this is the documented path to
+        # get it: migrate, then generate.
+        run: |
+          npm run migrate --workspace @sales-lakehouse/api
+          npm run seed --workspace @sales-lakehouse/api
+
+      - name: Run the pipeline
+        env:
+          WAREHOUSE_PATH: ${{ github.workspace }}/warehouse/sales.duckdb
+        run: python -m etl.run_pipeline --verbose
+
+      - name: Run it again, to prove the lake is append-only
+        env:
+          WAREHOUSE_PATH: ${{ github.workspace }}/warehouse/sales.duckdb
+        run: python -m etl.run_pipeline
+
+      - name: End-to-end pipeline tests
+        working-directory: etl
+        env:
+          WAREHOUSE_PATH: ${{ github.workspace }}/warehouse/sales.duckdb
+        run: python -m pytest -q -m integration
+
+      - name: MinIO logs on failure
+        if: failure()
+        run: docker logs minio

@@ -46,7 +46,7 @@ feature branch and merges to `main` only after its checks pass.
 | 0 | Repository and implementation plan | Complete |
 | 1 | Foundation: folders, Compose skeleton, environment and API contracts, health endpoint | Complete |
 | 2 | Operational application: migrations, synthetic data, customer/product/order APIs | Complete |
-| 3 | Lake and warehouse pipeline | Not started |
+| 3 | Lake and warehouse pipeline | Complete |
 | 4 | Analytics and pipeline-control APIs | Not started |
 | 5 | Frontend: sales pages and analytics dashboard | Not started |
 | 6 | Quality, packaging and handoff | Not started |
@@ -61,6 +61,8 @@ two jobs:
 
 - **static-checks** — typecheck, unit tests, `npm audit`, OpenAPI contract lint
   and `docker compose config`. No services required, so it fails fast.
+- **pipeline** — PostgreSQL and MinIO; runs the real ETL twice to prove the lake is
+  append-only, then the end-to-end pipeline tests.
 - **integration** — PostgreSQL as a service container; applies `npm run migrate`
   to a clean database and re-applies it to prove the second run is a no-op, runs
   `npm run seed` twice to prove it replaces rather than duplicates, then runs the
@@ -97,7 +99,7 @@ Expected result: `postgres`, `minio` and `api` report `healthy`, and
 | API | <http://localhost:4000/health> | Dependency-aware readiness |
 | PostgreSQL | `localhost:55432` | Credentials from `.env` |
 | MinIO S3 API | <http://localhost:9000> | Used by the ETL |
-| MinIO console | <http://localhost:9001> | Sign in with `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` |
+| MinIO console | <http://localhost:9001> | Sign in with `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD`; browse the raw lake runs here |
 
 `/health` returns `200` with `"status": "ok"` once PostgreSQL is reachable. The
 warehouse reports `down` with `"warehouse not published yet"` until the first
@@ -136,8 +138,10 @@ docker compose exec api npm run seed      # generate and load synthetic sales da
 curl -s localhost:4000/api/customers?limit=2   # operational endpoints
 curl -s localhost:4000/api/orders?limit=1
 
-# Phase 3 — pipeline (not yet available)
-docker compose run --rm etl python -m etl.run_pipeline
+# Phase 3 — lake and warehouse pipeline
+docker compose run --rm etl python -m etl.run_pipeline          # one full run
+docker compose run --rm etl python -m pytest -q                  # ETL unit tests
+docker compose run --rm -e ETL_INTEGRATION=1 etl python -m pytest -q   # + end-to-end
 ```
 
 ## Synthetic data
@@ -158,6 +162,21 @@ sale prices that diverge from catalogue prices. Uniform noise would make every
 dashboard chart meaningless and hide whether the aggregation works.
 
 See [apps/api/README.md](apps/api/README.md#seeding) for the full rationale.
+
+## The pipeline
+
+```bash
+docker compose run --rm etl python -m etl.run_pipeline
+```
+
+One run extracts a consistent PostgreSQL snapshot, writes it to an immutable
+run-partitioned Parquet prefix in MinIO with a checksummed manifest, reads it
+**back out of the lake**, rebuilds the DuckDB star schema from those files, runs
+14 data-quality checks, and publishes atomically — only if every check passes.
+
+Afterwards `/health` reports the warehouse as `up`, and `pipeline_runs` holds the
+audit record. See [etl/README.md](etl/README.md) for the design and the
+verified guarantees.
 
 ## Configuration
 
