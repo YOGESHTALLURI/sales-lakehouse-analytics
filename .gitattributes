@@ -1,0 +1,14 @@
+# Normalise line endings so the repository is identical on Windows, macOS and
+# Linux. Shell scripts must stay LF or they break when mounted into containers.
+* text=auto eol=lf
+
+*.sh   text eol=lf
+*.ps1  text eol=crlf
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+
+*.png     binary
+*.jpg     binary
+*.ico     binary
+*.parquet binary
+*.duckdb  binary

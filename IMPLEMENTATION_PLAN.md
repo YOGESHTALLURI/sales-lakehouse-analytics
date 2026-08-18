@@ -10,8 +10,8 @@ This document is deliberately written before application code. It is the impleme
 
 - GitHub repository: <https://github.com/YOGESHTALLURI/sales-lakehouse-analytics>
 - Default branch: `main`
-- Current local state: Git is initialized locally with the plan commits; `origin` has **not yet** been configured and nothing has been pushed.
-- The repository directory intentionally contains only planning material at this stage. The implementation folder structure is created in Phase 1, on its own feature branch.
+- Current local state: Git is initialized, `origin` is configured against the repository above, and the Phase 0 documentation commit is published on `main`. Phase 1 is in progress on `chore/project-foundation`.
+- Phase 0 committed planning material only. The implementation folder structure, Compose skeleton and contracts are created in Phase 1, on that feature branch.
 
 ### Non-negotiable engineering goals
 
@@ -149,7 +149,7 @@ The final OpenAPI file is the source of truth. Initial endpoints are:
 ## 7. Repository structure
 
 ```text
-full-stack-data-lake-warehouse/
+sales-lakehouse-analytics/
   README.md
   IMPLEMENTATION_PLAN.md
   ARCHITECTURE.md
@@ -431,4 +431,14 @@ The first push publishes the existing plan commit to `main`. Subsequent implemen
 
 ## 16. Immediate next action
 
-Initialize a new local Git repository and make the first commit containing this plan and the repository foundation. Creating a GitHub repository/pushing to a remote is a separate remote action and requires the user’s confirmation and account/repository details or an authenticated GitHub tool.
+Phase 0 is complete: the repository is initialized, the plan and project
+instructions are committed, and `main` is published to `origin`.
+
+The current action is Phase 1 on `chore/project-foundation`:
+
+1. Repository folders, Compose skeleton and the environment contract — done.
+2. The API and data contracts (`docs/api/openapi.yaml`, `ARCHITECTURE.md`) — done.
+3. A minimal health endpoint and service readiness checks — remaining.
+
+Then open the pull request into `main`, merge after checks pass, and begin
+`feat/oltp-schema` with the PostgreSQL migrations.

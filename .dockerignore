@@ -1,0 +1,19 @@
+# Keep build contexts small and reproducible. Anything generated locally must
+# be rebuilt inside the image rather than copied from the host.
+.git
+.github
+**/node_modules
+**/dist
+**/coverage
+**/.vite
+**/*.tsbuildinfo
+.env
+.env.*
+!.env.example
+data/warehouse/*
+!data/warehouse/README.md
+data/lake
+docs
+tests/e2e
+*.md
+!apps/api/README.md
