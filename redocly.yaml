@@ -1,0 +1,28 @@
+# Lint configuration for the API contract. Run with:
+#
+#   npx @redocly/cli@1 lint docs/api/openapi.yaml
+#
+# Two rules from the recommended ruleset are deliberately disabled because they
+# contradict documented decisions rather than pointing at contract defects.
+
+extends:
+  - recommended
+
+apis:
+  sales-lakehouse@v1:
+    root: docs/api/openapi.yaml
+
+rules:
+  # The local demo API is unauthenticated by design: it runs only inside the
+  # Compose network and the assignment scope excludes auth. Adding a fake
+  # security scheme to satisfy a linter would misdocument the service.
+  security-defined: off
+
+  # The documented server IS localhost. Docker Compose is the baseline
+  # deployment, so a public URL would be the inaccurate value here.
+  no-server-example.com: off
+
+  # Kept at warning level: /health and /api/pipeline/status take no input and
+  # therefore have no honest 4XX, while every operation that accepts a body or
+  # query parameter declares its own 400.
+  operation-4xx-response: warn

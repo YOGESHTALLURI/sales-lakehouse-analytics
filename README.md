@@ -98,10 +98,11 @@ docker compose down -v
 ## Commands
 
 ```bash
-# Phase 1 — infrastructure
+# Phase 1 — infrastructure and contracts
 docker compose config                 # validate the Compose contract
 docker compose up -d                  # start PostgreSQL + MinIO
 docker compose logs -f minio-init     # confirm the lake bucket was created
+npx @redocly/cli@1 lint docs/api/openapi.yaml   # validate the API contract
 
 # Phase 2 — operational application (not yet available)
 docker compose exec api npm run migrate
@@ -160,6 +161,8 @@ docker compose run --rm etl python -m pytest   # pytest (from Phase 3)
 ## Documentation
 
 - [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) — implementation contract and build order
+- [ARCHITECTURE.md](ARCHITECTURE.md) — component boundaries, schemas, lake immutability policy and trade-offs
+- [docs/api/openapi.yaml](docs/api/openapi.yaml) — request/response contract, the source of truth for the API
 - [CONTRIBUTING.md](CONTRIBUTING.md) — branch, commit and verification rules
 - [CLAUDE.md](CLAUDE.md) — project instructions applied while building
 

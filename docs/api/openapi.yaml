@@ -1,0 +1,960 @@
+openapi: 3.1.0
+
+info:
+  title: Sales Lakehouse Analytics API
+  version: 0.1.0
+  description: |
+    REST contract for the sales-management application and its analytical
+    platform. This file is the source of truth for requests and responses.
+
+    Two boundaries are enforced and must not be blurred by any implementation:
+
+    - Operational endpoints (`/api/customers`, `/api/products`, `/api/orders`)
+      read and write **PostgreSQL** only.
+    - Analytics endpoints (`/api/analytics/*`) read the **DuckDB** warehouse
+      only. They never fall back to PostgreSQL; if the warehouse has not been
+      published yet they return empty results with `warehouseReady: false`
+      rather than querying the operational database.
+
+    Money is represented as a JSON number with two decimal places of
+    significance. Identifiers are UUID v4. Dates are ISO-8601: `YYYY-MM-DD`
+    for calendar dates and RFC 3339 UTC instants for timestamps.
+  license:
+    name: MIT
+    url: https://github.com/YOGESHTALLURI/sales-lakehouse-analytics/blob/main/LICENSE
+
+servers:
+  - url: http://localhost:4000
+    description: Local Docker Compose stack
+
+tags:
+  - name: Health
+    description: Service and dependency readiness
+  - name: Customers
+    description: Operational customer records (PostgreSQL)
+  - name: Products
+    description: Operational product catalogue (PostgreSQL)
+  - name: Orders
+    description: Transactional multi-item sales orders (PostgreSQL)
+  - name: Pipeline
+    description: ETL run control and audit status
+  - name: Analytics
+    description: Warehouse-backed aggregates (DuckDB)
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Dependency-aware readiness summary
+      description: |
+        Reports the reachability of each dependency the API needs. Returns
+        `200` when the API itself is serving and every required dependency is
+        reachable, and `503` when a required dependency is down. The warehouse
+        is reported but is not required for readiness, because a freshly
+        started stack has no published warehouse until the first pipeline run.
+      operationId: getHealth
+      responses:
+        '200':
+          description: The API and its required dependencies are ready.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthReport'
+        '503':
+          description: A required dependency is unreachable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthReport'
+
+  /api/customers:
+    get:
+      tags: [Customers]
+      summary: List customers
+      operationId: listCustomers
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: A page of customers, newest first.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, pagination]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Customer'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [Customers]
+      summary: Create a customer
+      operationId: createCustomer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerCreate'
+      responses:
+        '201':
+          description: The customer was created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          description: A customer with that email already exists.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/products:
+    get:
+      tags: [Products]
+      summary: List products
+      operationId: listProducts
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+        - name: category
+          in: query
+          description: Restrict results to a single category.
+          schema:
+            type: string
+            maxLength: 80
+        - name: active
+          in: query
+          description: Restrict results to active or inactive products.
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: A page of products.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, pagination]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [Products]
+      summary: Create a product
+      operationId: createProduct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductCreate'
+      responses:
+        '201':
+          description: The product was created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          description: A product with that SKU already exists.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/orders:
+    get:
+      tags: [Orders]
+      summary: List orders with their items
+      operationId: listOrders
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+        - name: customerId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/OrderStatus'
+        - name: from
+          in: query
+          description: Inclusive lower bound on `orderDate`.
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          description: Inclusive upper bound on `orderDate`.
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: A page of orders, newest first.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, pagination]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Order'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [Orders]
+      summary: Create an order and its items atomically
+      description: |
+        The order header and every item are written in one PostgreSQL
+        transaction. If any item references a missing or inactive product the
+        whole request fails and nothing is persisted.
+
+        `unitPriceAtSale` is captured per item so that a later change to the
+        product's price never rewrites historical revenue.
+      operationId: createOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderCreate'
+      responses:
+        '201':
+          description: The order and its items were created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          description: The customer or one of the products does not exist.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/pipeline/run:
+    post:
+      tags: [Pipeline]
+      summary: Start one ETL run
+      description: |
+        Delegates a full extract -> lake -> warehouse run to the ETL service
+        and returns immediately with the accepted run. Only one run may be
+        active at a time; a second request while a run is `running` is rejected
+        with `409`.
+      operationId: runPipeline
+      responses:
+        '202':
+          description: The run was accepted and is now `running`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PipelineRun'
+        '409':
+          description: A pipeline run is already in progress.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/pipeline/status:
+    get:
+      tags: [Pipeline]
+      summary: Current and last successful pipeline run
+      description: |
+        Reads the persisted `pipeline_runs` audit table. The UI polls this
+        endpoint while a run is active.
+      operationId: getPipelineStatus
+      responses:
+        '200':
+          description: Pipeline audit status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PipelineStatus'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/analytics/revenue:
+    get:
+      tags: [Analytics]
+      summary: Headline revenue KPIs from the warehouse
+      operationId: getRevenue
+      parameters:
+        - $ref: '#/components/parameters/AnalyticsFrom'
+        - $ref: '#/components/parameters/AnalyticsTo'
+      responses:
+        '200':
+          description: |
+            KPI totals. When no warehouse has been published, every measure is
+            `0` and `warehouseReady` is `false`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RevenueSummary'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/analytics/sales-by-product:
+    get:
+      tags: [Analytics]
+      summary: Product and category aggregates from the warehouse
+      operationId: getSalesByProduct
+      parameters:
+        - $ref: '#/components/parameters/AnalyticsFrom'
+        - $ref: '#/components/parameters/AnalyticsTo'
+        - name: topN
+          in: query
+          description: How many products to return in `topProducts`.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        '200':
+          description: Category totals and the highest-revenue products.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesByProduct'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/analytics/sales-by-city:
+    get:
+      tags: [Analytics]
+      summary: City aggregates from the warehouse
+      operationId: getSalesByCity
+      parameters:
+        - $ref: '#/components/parameters/AnalyticsFrom'
+        - $ref: '#/components/parameters/AnalyticsTo'
+      responses:
+        '200':
+          description: Revenue and order counts grouped by customer city.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesByCity'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/analytics/daily-sales:
+    get:
+      tags: [Analytics]
+      summary: Daily revenue time series from the warehouse
+      operationId: getDailySales
+      parameters:
+        - $ref: '#/components/parameters/AnalyticsFrom'
+        - $ref: '#/components/parameters/AnalyticsTo'
+      responses:
+        '200':
+          description: |
+            One point per calendar day in range, joined through `dim_date` so
+            days without sales appear with zero revenue rather than being
+            silently absent.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DailySales'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      description: Maximum number of records to return.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 50
+    Offset:
+      name: offset
+      in: query
+      description: Number of records to skip.
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    AnalyticsFrom:
+      name: from
+      in: query
+      description: Inclusive start of the reporting window. Defaults to the earliest fact.
+      schema:
+        type: string
+        format: date
+    AnalyticsTo:
+      name: to
+      in: query
+      description: Inclusive end of the reporting window. Defaults to the latest fact.
+      schema:
+        type: string
+        format: date
+
+  responses:
+    ValidationError:
+      description: The request body or query failed validation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationErrorBody'
+    InternalError:
+      description: An unexpected error occurred. Details are logged, not returned.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              description: Stable machine-readable code, for example `not_found` or `conflict`.
+              examples: ['conflict']
+            message:
+              type: string
+              description: Human-readable summary, safe to display.
+              examples: ['A customer with that email already exists.']
+
+    ValidationErrorBody:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, issues]
+          properties:
+            code:
+              type: string
+              const: validation_failed
+            message:
+              type: string
+              examples: ['Request validation failed.']
+            issues:
+              type: array
+              description: One entry per rejected field, derived from the Zod schema.
+              items:
+                type: object
+                required: [path, message]
+                properties:
+                  path:
+                    type: string
+                    examples: ['items.0.quantity']
+                  message:
+                    type: string
+                    examples: ['Expected an integer greater than 0']
+
+    Pagination:
+      type: object
+      required: [limit, offset, total]
+      properties:
+        limit:
+          type: integer
+          examples: [50]
+        offset:
+          type: integer
+          examples: [0]
+        total:
+          type: integer
+          description: Total matching records, ignoring limit and offset.
+          examples: [500]
+
+    DependencyState:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [up, down, unknown]
+        detail:
+          type: string
+          description: Short diagnostic hint. Never contains credentials.
+
+    HealthReport:
+      type: object
+      required: [status, service, version, uptimeSeconds, dependencies]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+          description: |
+            `ok` when every required dependency is up. `degraded` when a
+            required dependency is down; served with HTTP 503.
+        service:
+          type: string
+          const: sales-lakehouse-api
+        version:
+          type: string
+          examples: ['0.1.0']
+        uptimeSeconds:
+          type: number
+          examples: [42.5]
+        dependencies:
+          type: object
+          required: [postgres, warehouse]
+          properties:
+            postgres:
+              allOf:
+                - $ref: '#/components/schemas/DependencyState'
+              description: Required. OLTP connectivity.
+            warehouse:
+              allOf:
+                - $ref: '#/components/schemas/DependencyState'
+              description: |
+                Not required for readiness. `down` simply means the DuckDB file
+                has not been published by a pipeline run yet.
+
+    Customer:
+      type: object
+      required: [id, name, email, city, state, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          examples: ['Aarav Sharma']
+        email:
+          type: string
+          format: email
+          examples: ['aarav.sharma@example.com']
+        city:
+          type: string
+          examples: ['Pune']
+        state:
+          type: string
+          examples: ['Maharashtra']
+        createdAt:
+          type: string
+          format: date-time
+
+    CustomerCreate:
+      type: object
+      required: [name, email, city, state]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        email:
+          type: string
+          format: email
+          maxLength: 200
+          description: Unique across customers, compared case-insensitively.
+        city:
+          type: string
+          minLength: 1
+          maxLength: 80
+        state:
+          type: string
+          minLength: 1
+          maxLength: 80
+
+    Product:
+      type: object
+      required: [id, sku, name, category, unitPrice, active, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        sku:
+          type: string
+          examples: ['ELEC-0042']
+        name:
+          type: string
+          examples: ['Noise-Cancelling Headphones']
+        category:
+          type: string
+          examples: ['Electronics']
+        unitPrice:
+          type: number
+          minimum: 0
+          description: Current catalogue price. Historical sales keep their own price.
+          examples: [7499.00]
+        active:
+          type: boolean
+          description: Inactive products may not be added to new orders.
+        createdAt:
+          type: string
+          format: date-time
+
+    ProductCreate:
+      type: object
+      required: [sku, name, category, unitPrice]
+      additionalProperties: false
+      properties:
+        sku:
+          type: string
+          minLength: 1
+          maxLength: 40
+          description: Unique stock-keeping unit.
+        name:
+          type: string
+          minLength: 1
+          maxLength: 160
+        category:
+          type: string
+          minLength: 1
+          maxLength: 80
+        unitPrice:
+          type: number
+          minimum: 0
+        active:
+          type: boolean
+          default: true
+
+    OrderStatus:
+      type: string
+      enum: [pending, confirmed, shipped, delivered, cancelled]
+
+    OrderItem:
+      type: object
+      required: [id, productId, sku, productName, quantity, unitPriceAtSale, lineTotal]
+      properties:
+        id:
+          type: string
+          format: uuid
+        productId:
+          type: string
+          format: uuid
+        sku:
+          type: string
+        productName:
+          type: string
+          description: Denormalised for display; the product row remains authoritative.
+        quantity:
+          type: integer
+          minimum: 1
+        unitPriceAtSale:
+          type: number
+          minimum: 0
+          description: Price captured when the sale happened, never restated.
+        lineTotal:
+          type: number
+          description: '`quantity` multiplied by `unitPriceAtSale`, computed by the API.'
+
+    Order:
+      type: object
+      required: [id, customerId, orderDate, status, items, itemCount, orderTotal, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        customerId:
+          type: string
+          format: uuid
+        customerName:
+          type: string
+        orderDate:
+          type: string
+          format: date
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        itemCount:
+          type: integer
+          description: Number of distinct line items on the order.
+        orderTotal:
+          type: number
+          description: Sum of every `lineTotal`.
+        createdAt:
+          type: string
+          format: date-time
+
+    OrderCreate:
+      type: object
+      required: [customerId, items]
+      additionalProperties: false
+      properties:
+        customerId:
+          type: string
+          format: uuid
+        orderDate:
+          type: string
+          format: date
+          description: Defaults to the current UTC date. May not be in the future.
+        status:
+          allOf:
+            - $ref: '#/components/schemas/OrderStatus'
+          default: pending
+        items:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            type: object
+            required: [productId, quantity]
+            additionalProperties: false
+            properties:
+              productId:
+                type: string
+                format: uuid
+              quantity:
+                type: integer
+                minimum: 1
+                maximum: 1000
+              unitPriceAtSale:
+                type: number
+                minimum: 0
+                description: |
+                  Optional override. When omitted the API captures the
+                  product's current `unitPrice` inside the same transaction.
+
+    PipelineRunStatus:
+      type: string
+      enum: [running, succeeded, failed]
+
+    PipelineRun:
+      type: object
+      required: [runId, status, startedAt]
+      properties:
+        runId:
+          type: string
+          format: uuid
+          description: Also the `run_id` partition in the lake prefix.
+        status:
+          $ref: '#/components/schemas/PipelineRunStatus'
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: [string, 'null']
+          format: date-time
+        durationSeconds:
+          type: [number, 'null']
+        lakePrefix:
+          type: [string, 'null']
+          description: Immutable raw prefix written by this run.
+          examples: ['raw/run_date=2026-08-18/run_id=1f0c2c1e-2a4b-4b8e-9c1a-6d5f8e2b7a30/']
+        rowCounts:
+          type: object
+          description: Source row counts captured at extraction time.
+          properties:
+            customers:
+              type: integer
+            products:
+              type: integer
+            orders:
+              type: integer
+            orderItems:
+              type: integer
+            factSales:
+              type: integer
+        errorSummary:
+          type: [string, 'null']
+          description: Sanitised failure summary. Never contains credentials.
+
+    PipelineStatus:
+      type: object
+      required: [current, lastSuccessful]
+      properties:
+        current:
+          oneOf:
+            - $ref: '#/components/schemas/PipelineRun'
+            - type: 'null'
+          description: The active or most recent run, or `null` if none has run.
+        lastSuccessful:
+          oneOf:
+            - $ref: '#/components/schemas/PipelineRun'
+            - type: 'null'
+          description: Most recent run with status `succeeded`.
+
+    WarehouseMeta:
+      type: object
+      required: [warehouseReady]
+      properties:
+        warehouseReady:
+          type: boolean
+          description: |
+            `false` when no warehouse has been published yet. Analytics never
+            substitute PostgreSQL results in that case; they return zeros and
+            empty arrays.
+        generatedAt:
+          type: [string, 'null']
+          format: date-time
+          description: When the served warehouse file was published.
+        range:
+          type: object
+          description: Reporting window actually applied.
+          properties:
+            from:
+              type: [string, 'null']
+              format: date
+            to:
+              type: [string, 'null']
+              format: date
+
+    RevenueSummary:
+      allOf:
+        - $ref: '#/components/schemas/WarehouseMeta'
+        - type: object
+          required: [totalRevenue, orderCount, customerCount, unitsSold, averageOrderValue]
+          properties:
+            totalRevenue:
+              type: number
+              examples: [18422750.5]
+            orderCount:
+              type: integer
+              examples: [10000]
+            customerCount:
+              type: integer
+              description: Distinct customers with at least one sale in range.
+              examples: [498]
+            unitsSold:
+              type: integer
+              examples: [29871]
+            averageOrderValue:
+              type: number
+              description: '`totalRevenue` divided by `orderCount`, or 0 when there are no orders.'
+              examples: [1842.28]
+
+    SalesByProduct:
+      allOf:
+        - $ref: '#/components/schemas/WarehouseMeta'
+        - type: object
+          required: [categories, topProducts]
+          properties:
+            categories:
+              type: array
+              items:
+                type: object
+                required: [category, revenue, unitsSold, orderCount]
+                properties:
+                  category:
+                    type: string
+                  revenue:
+                    type: number
+                  unitsSold:
+                    type: integer
+                  orderCount:
+                    type: integer
+            topProducts:
+              type: array
+              description: Ordered by revenue descending.
+              items:
+                type: object
+                required: [productId, sku, name, category, revenue, unitsSold]
+                properties:
+                  productId:
+                    type: string
+                    format: uuid
+                  sku:
+                    type: string
+                  name:
+                    type: string
+                  category:
+                    type: string
+                  revenue:
+                    type: number
+                  unitsSold:
+                    type: integer
+
+    SalesByCity:
+      allOf:
+        - $ref: '#/components/schemas/WarehouseMeta'
+        - type: object
+          required: [cities]
+          properties:
+            cities:
+              type: array
+              description: Ordered by revenue descending.
+              items:
+                type: object
+                required: [city, state, revenue, orderCount, customerCount]
+                properties:
+                  city:
+                    type: string
+                  state:
+                    type: string
+                  revenue:
+                    type: number
+                  orderCount:
+                    type: integer
+                  customerCount:
+                    type: integer
+
+    DailySales:
+      allOf:
+        - $ref: '#/components/schemas/WarehouseMeta'
+        - type: object
+          required: [series]
+          properties:
+            series:
+              type: array
+              description: Ascending by date, gap-filled from `dim_date`.
+              items:
+                type: object
+                required: [date, revenue, orderCount, unitsSold]
+                properties:
+                  date:
+                    type: string
+                    format: date
+                  revenue:
+                    type: number
+                  orderCount:
+                    type: integer
+                  unitsSold:
+                    type: integer
