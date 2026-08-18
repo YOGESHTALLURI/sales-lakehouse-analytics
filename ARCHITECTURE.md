@@ -235,6 +235,17 @@ erDiagram
 - **Grain:** one `fact_sales` row per sold order item. Order-level measures are
   derived by aggregating on `order_id`, which keeps product-level analysis
   possible without a second fact table.
+- **Cancelled orders are not facts.** A cancelled order is not a sale, so counting
+  it would inflate every published revenue figure by the cancellation rate. Those
+  rows remain in PostgreSQL and in the lake permanently — they are simply excluded
+  from `fact_sales`. The completeness check therefore compares the fact count
+  against *non-cancelled* source items; comparing against all of them would fail
+  by exactly the cancellation rate and let a real completeness bug hide behind an
+  expected gap. The published file records the rule in
+  `warehouse_metadata.excluded_order_statuses`.
+- **`warehouse_metadata`** stamps each published warehouse with the run id, lake
+  prefix, publish time and versions, so a file found on disk can always say which
+  raw run produced it. The analytics API reads `published_at` for `generatedAt`.
 - **`dim_date` is included** beyond the assignment minimum so daily series can
   be gap-filled: a day with no sales appears with zero revenue instead of
   vanishing from the chart.

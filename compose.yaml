@@ -119,6 +119,44 @@ services:
     networks:
       - sales-net
 
+  # Batch job, not a service: it runs to completion and exits, so it is invoked
+  # explicitly rather than started by `up`.
+  #
+  #   docker compose run --rm etl python -m etl.run_pipeline
+  #
+  # `profiles` keeps it out of `docker compose up`, which would otherwise report
+  # the container as exited and confuse a first-run health check.
+  etl:
+    build:
+      context: .
+      dockerfile: etl/Dockerfile
+    image: sales-lakehouse-etl:latest
+    profiles: [tools]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-http://minio:9000}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env}
+      MINIO_REGION: ${MINIO_REGION:-us-east-1}
+      LAKE_BUCKET: ${LAKE_BUCKET:-sales-lake}
+      LAKE_RAW_PREFIX: ${LAKE_RAW_PREFIX:-raw}
+      WAREHOUSE_PATH: ${WAREHOUSE_PATH:-/warehouse/sales.duckdb}
+    volumes:
+      # Read-write: the ETL is the only writer of the warehouse. The API mounts
+      # this same volume read-only, so it can never corrupt what it reads.
+      - warehouse-data:/warehouse
+    networks:
+      - sales-net
+
 volumes:
   postgres-data:
     name: sales-lakehouse-postgres-data

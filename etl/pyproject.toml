@@ -1,0 +1,46 @@
+[project]
+name = "sales-lakehouse-etl"
+version = "0.1.0"
+description = "Extract PostgreSQL to an immutable Parquet lake, then build the DuckDB warehouse from it"
+requires-python = ">=3.12"
+
+# Pinned to compatible releases so a rebuild resolves the same minor versions.
+# The pipeline's output must be reproducible, and a silent major upgrade of
+# pyarrow or duckdb could change Parquet encoding or SQL behaviour.
+dependencies = [
+    "sqlalchemy~=2.0.36",
+    "psycopg[binary]~=3.2.3",
+    "pyarrow~=18.0",
+    "duckdb~=1.1.3",
+    "boto3~=1.35",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest~=8.3",
+    "pytest-cov~=6.0",
+    "ruff~=0.8",
+]
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Integration specs need PostgreSQL and MinIO; unit specs must not.
+markers = ["integration: requires the Compose stack (postgres + minio)"]
+addopts = "-ra --strict-markers"
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+# N and BLE are enabled so the deliberate deviations carry a meaningful noqa:
+# boto3 requires PascalCase keyword arguments, and the pipeline runner must catch
+# broadly so that every failure still reaches the audit record.
+select = ["E", "F", "I", "UP", "B", "SIM", "PTH", "RUF", "N", "BLE"]
