@@ -1,0 +1,116 @@
+@import 'tailwindcss';
+
+/* ============================================================================
+   Design tokens.
+   =========================================================================
+   Components must not contain raw colour, shadow or radius values. Everything
+   visual is named here once, so a change to the palette is a change to one file
+   and every surface follows.
+
+   Spacing follows an 8px rhythm: use even Tailwind steps only — 2 (8px),
+   4 (16px), 6 (24px), 8 (32px), 12 (48px). Odd steps (p-3, gap-5) are the
+   exception that needs a reason, not the default.
+
+   The chart tokens are consumed as `var(--color-chart-1)` strings inside SVG
+   paint attributes rather than being duplicated in TypeScript. SVG resolves CSS
+   custom properties in `fill`/`stroke`, which keeps one source of truth for the
+   palette instead of a hex list that drifts out of step with this file.
+   ========================================================================== */
+
+@theme {
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    Helvetica, Arial, sans-serif;
+
+  /* ── Surfaces ─────────────────────────────────────────────────────────── */
+  --color-canvas: #f8fafc;
+  --color-surface: #ffffff;
+  --color-surface-sunken: #f1f5f9;
+  --color-surface-hover: #f8fafc;
+
+  /* ── Lines ────────────────────────────────────────────────────────────── */
+  --color-line: #e2e8f0;
+  --color-line-strong: #cbd5e1;
+
+  /* ── Text ─────────────────────────────────────────────────────────────── */
+  --color-ink: #0f172a;
+  --color-ink-soft: #334155;
+  --color-ink-muted: #64748b;
+  --color-ink-faint: #94a3b8;
+  --color-ink-inverse: #ffffff;
+
+  /* ── Primary accent ───────────────────────────────────────────────────── */
+  --color-brand: #4f46e5;
+  --color-brand-hover: #4338ca;
+  --color-brand-active: #3730a3;
+  --color-brand-surface: #eef2ff;
+  --color-brand-line: #c7d2fe;
+
+  /* ── Status ───────────────────────────────────────────────────────────── */
+  --color-positive: #059669;
+  --color-positive-surface: #ecfdf5;
+  --color-positive-line: #a7f3d0;
+  --color-caution: #b45309;
+  --color-caution-surface: #fffbeb;
+  --color-caution-line: #fde68a;
+  --color-critical: #dc2626;
+  --color-critical-surface: #fef2f2;
+  --color-critical-line: #fecaca;
+
+  /* ── Chart series ─────────────────────────────────────────────────────── */
+  --color-chart-1: #4f46e5;
+  --color-chart-2: #0891b2;
+  --color-chart-3: #059669;
+  --color-chart-4: #d97706;
+  --color-chart-5: #7c3aed;
+  --color-chart-6: #db2777;
+  --color-chart-track: #eef2f6;
+  --color-chart-grid: #e2e8f0;
+  --color-chart-axis: #64748b;
+
+  /* ── Elevation ────────────────────────────────────────────────────────── */
+  --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.05);
+  --shadow-raised: 0 4px 12px -2px rgb(15 23 42 / 0.08), 0 2px 4px -2px rgb(15 23 42 / 0.05);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scrollbar-gutter: stable;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Figures are tabular everywhere so a measure going from 0 to a real value
+     changes the digits without changing the column width. */
+  th,
+  td,
+  output,
+  [data-numeric] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* A visible focus indicator is the baseline, not an enhancement. Components
+     may restyle it, but nothing may remove it. */
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+
+  ::placeholder {
+    color: var(--color-ink-faint);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
