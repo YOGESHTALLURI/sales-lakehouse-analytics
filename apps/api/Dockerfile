@@ -14,6 +14,9 @@ RUN npm ci --include-workspace-root --workspace @sales-lakehouse/api
 FROM deps AS dev
 WORKDIR /app
 COPY apps/api apps/api
+# Migrations keep their repository-relative location, so the path the runner
+# resolves from the package root is identical inside and outside the container.
+COPY data/postgres/migrations data/postgres/migrations
 ENV NODE_ENV=development
 EXPOSE 4000
 WORKDIR /app/apps/api

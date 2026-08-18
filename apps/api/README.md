@@ -12,9 +12,30 @@ The HTTP contract lives in [../../docs/api/openapi.yaml](../../docs/api/openapi.
 | Endpoint | Status |
 |---|---|
 | `GET /health` | Available — dependency-aware readiness |
-| `/api/customers`, `/api/products`, `/api/orders` | Phase 2 |
+| `/api/customers`, `/api/products`, `/api/orders` | Phase 2, in progress |
 | `/api/pipeline/*` | Phase 4 |
 | `/api/analytics/*` | Phase 4 |
+
+## Migrations
+
+```bash
+docker compose exec api npm run migrate      # inside the stack
+npm run migrate --workspace @sales-lakehouse/api   # from the host
+```
+
+SQL lives in [../../data/postgres/migrations](../../data/postgres/migrations),
+named `NNNN_snake_case.sql`. The runner is a few dozen lines of `pg` rather than
+a framework, so the schema stays plain SQL an evaluator can read and there is no
+tool version to keep in step with the database. It still guarantees what matters:
+
+- **Numeric ordering**, so `0010_` cannot sort ahead of `0009_`.
+- **Exactly once**, tracked in a `schema_migrations` table you can inspect with psql.
+- **One transaction per file**, so a failure leaves the database on the last
+  complete migration instead of half-way through one. Files therefore must not
+  contain their own `BEGIN`/`COMMIT` — a test enforces this.
+- **Checksums**, so editing a migration that has already run is refused. Silently
+  allowing it would let the file and the live schema disagree for good, and every
+  later environment would build a different database from the same repository.
 
 ## Commands
 
