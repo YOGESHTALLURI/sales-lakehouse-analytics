@@ -1,0 +1,148 @@
+{
+  "$comment": [
+    "Vocabulary for the synthetic-data generator. Committed rather than drawn",
+    "from Faker at runtime: determinism then depends only on this file and the",
+    "seeded PRNG, not on a third-party library's internal RNG, which changes",
+    "between versions and would silently alter the dataset on upgrade.",
+    "",
+    "Names and places are ordinary Indian retail vocabulary. No entry refers to",
+    "a real person, and no data here was downloaded — see IMPLEMENTATION_PLAN.md",
+    "section 8."
+  ],
+
+  "firstNames": [
+    "Aarav", "Aditi", "Advait", "Akash", "Ananya", "Anika", "Arjun", "Aryan",
+    "Bhavya", "Chaitanya", "Darshan", "Deepika", "Dhruv", "Divya", "Gaurav",
+    "Harsha", "Ishaan", "Ishita", "Jatin", "Kavya", "Kiran", "Lakshmi",
+    "Madhav", "Meera", "Mohit", "Namrata", "Neha", "Nikhil", "Pallavi",
+    "Pooja", "Pranav", "Priya", "Rahul", "Rajesh", "Rekha", "Rohan",
+    "Sanjana", "Shreya", "Siddharth", "Sneha", "Suresh", "Tanvi", "Varun",
+    "Vikram", "Vishal", "Yash", "Zara", "Nandini", "Karthik", "Lavanya"
+  ],
+
+  "lastNames": [
+    "Agarwal", "Bhat", "Chatterjee", "Chauhan", "Desai", "Dutta", "Gupta",
+    "Iyer", "Jain", "Joshi", "Kapoor", "Khanna", "Kulkarni", "Kumar",
+    "Malhotra", "Mehta", "Menon", "Mishra", "Nair", "Patel", "Pillai",
+    "Rao", "Reddy", "Saxena", "Sharma", "Shetty", "Singh", "Sinha",
+    "Talluri", "Varma", "Verma", "Yadav"
+  ],
+
+  "$commentLocations": [
+    "A controlled list, not free text: dim_customer groups revenue by city and",
+    "state, so the pairing must be consistent and finite for the dashboard to",
+    "produce readable charts. weight biases how many customers land in a city,",
+    "roughly reflecting metro concentration."
+  ],
+  "locations": [
+    { "city": "Mumbai",     "state": "Maharashtra",   "weight": 12 },
+    { "city": "Pune",       "state": "Maharashtra",   "weight": 8 },
+    { "city": "Nagpur",     "state": "Maharashtra",   "weight": 3 },
+    { "city": "Bengaluru",  "state": "Karnataka",     "weight": 12 },
+    { "city": "Mysuru",     "state": "Karnataka",     "weight": 3 },
+    { "city": "Hyderabad",  "state": "Telangana",     "weight": 9 },
+    { "city": "Warangal",   "state": "Telangana",     "weight": 2 },
+    { "city": "Chennai",    "state": "Tamil Nadu",    "weight": 9 },
+    { "city": "Coimbatore", "state": "Tamil Nadu",    "weight": 4 },
+    { "city": "Madurai",    "state": "Tamil Nadu",    "weight": 2 },
+    { "city": "Delhi",      "state": "Delhi",         "weight": 11 },
+    { "city": "Gurugram",   "state": "Haryana",       "weight": 5 },
+    { "city": "Faridabad",  "state": "Haryana",       "weight": 2 },
+    { "city": "Noida",      "state": "Uttar Pradesh", "weight": 5 },
+    { "city": "Lucknow",    "state": "Uttar Pradesh", "weight": 4 },
+    { "city": "Kanpur",     "state": "Uttar Pradesh", "weight": 2 },
+    { "city": "Kolkata",    "state": "West Bengal",   "weight": 8 },
+    { "city": "Ahmedabad",  "state": "Gujarat",       "weight": 7 },
+    { "city": "Surat",      "state": "Gujarat",       "weight": 4 },
+    { "city": "Jaipur",     "state": "Rajasthan",     "weight": 5 },
+    { "city": "Jodhpur",    "state": "Rajasthan",     "weight": 2 },
+    { "city": "Indore",     "state": "Madhya Pradesh", "weight": 4 },
+    { "city": "Bhopal",     "state": "Madhya Pradesh", "weight": 3 },
+    { "city": "Kochi",      "state": "Kerala",        "weight": 4 },
+    { "city": "Thiruvananthapuram", "state": "Kerala", "weight": 3 },
+    { "city": "Chandigarh", "state": "Punjab",        "weight": 3 },
+    { "city": "Bhubaneswar", "state": "Odisha",       "weight": 3 },
+    { "city": "Guwahati",   "state": "Assam",         "weight": 2 },
+    { "city": "Patna",      "state": "Bihar",         "weight": 3 },
+    { "city": "Dehradun",   "state": "Uttarakhand",   "weight": 2 }
+  ],
+
+  "$commentProducts": [
+    "Each category contributes products built as '<modifier> <noun>'. priceBand",
+    "is the inclusive rupee range for that category's catalogue prices, so",
+    "Electronics is genuinely more expensive than Grocery and category revenue",
+    "charts show real spread rather than uniform noise."
+  ],
+  "categories": [
+    {
+      "name": "Electronics",
+      "skuPrefix": "ELEC",
+      "priceBand": [499, 24999],
+      "modifiers": ["Compact", "Wireless", "Pro", "Ultra", "Smart", "Portable", "Noise-Cancelling", "HD"],
+      "nouns": ["Headphones", "Bluetooth Speaker", "Smartwatch", "Power Bank", "Laptop Sleeve", "Webcam", "Mechanical Keyboard", "Wireless Mouse", "Tablet Stand", "USB-C Hub", "Action Camera", "Soundbar"]
+    },
+    {
+      "name": "Home & Kitchen",
+      "skuPrefix": "HOME",
+      "priceBand": [199, 8999],
+      "modifiers": ["Stainless Steel", "Non-Stick", "Ceramic", "Insulated", "Foldable", "Copper", "Borosilicate", "Cast Iron"],
+      "nouns": ["Pressure Cooker", "Frying Pan", "Water Bottle", "Dinner Set", "Storage Container", "Mixer Grinder", "Coffee Press", "Chopping Board", "Casserole", "Kettle", "Spice Rack", "Serving Tray"]
+    },
+    {
+      "name": "Fashion",
+      "skuPrefix": "FASH",
+      "priceBand": [299, 5999],
+      "modifiers": ["Cotton", "Linen", "Slim-Fit", "Handloom", "Embroidered", "Printed", "Relaxed", "Denim"],
+      "nouns": ["Kurta", "Shirt", "Saree", "Trousers", "Jacket", "Scarf", "Dupatta", "Sneakers", "Sandals", "Handbag", "Belt", "Wallet"]
+    },
+    {
+      "name": "Beauty & Personal Care",
+      "skuPrefix": "BEAU",
+      "priceBand": [99, 1999],
+      "modifiers": ["Herbal", "Ayurvedic", "Gentle", "Nourishing", "Hydrating", "Cold-Pressed", "Sulphate-Free", "Brightening"],
+      "nouns": ["Face Wash", "Hair Oil", "Shampoo", "Moisturiser", "Sunscreen", "Body Lotion", "Lip Balm", "Face Serum", "Beard Oil", "Hand Cream", "Toner", "Conditioner"]
+    },
+    {
+      "name": "Sports & Outdoors",
+      "skuPrefix": "SPRT",
+      "priceBand": [199, 9999],
+      "modifiers": ["Lightweight", "All-Weather", "Professional", "Adjustable", "Anti-Slip", "Reinforced", "Breathable", "Heavy-Duty"],
+      "nouns": ["Yoga Mat", "Cricket Bat", "Badminton Racquet", "Football", "Dumbbell Set", "Resistance Bands", "Trekking Backpack", "Cycling Helmet", "Skipping Rope", "Water Bottle", "Running Shoes", "Camping Tent"]
+    },
+    {
+      "name": "Books & Stationery",
+      "skuPrefix": "BOOK",
+      "priceBand": [49, 1499],
+      "modifiers": ["Hardbound", "Illustrated", "Ruled", "Recycled", "Premium", "Pocket", "Spiral", "Dotted"],
+      "nouns": ["Notebook", "Sketchbook", "Fountain Pen", "Gel Pen Set", "Desk Organiser", "Planner", "Highlighter Pack", "Sticky Notes", "Art Supplies Kit", "Book Stand", "File Folder", "Pencil Case"]
+    },
+    {
+      "name": "Grocery & Gourmet",
+      "skuPrefix": "GROC",
+      "priceBand": [39, 1499],
+      "modifiers": ["Organic", "Single-Origin", "Stone-Ground", "Cold-Pressed", "Artisanal", "Roasted", "Unrefined", "Farm-Fresh"],
+      "nouns": ["Basmati Rice", "Filter Coffee", "Green Tea", "Almonds", "Cashews", "Honey", "Groundnut Oil", "Turmeric Powder", "Masala Blend", "Jaggery", "Millet Flour", "Ghee"]
+    },
+    {
+      "name": "Toys & Games",
+      "skuPrefix": "TOYS",
+      "priceBand": [149, 3999],
+      "modifiers": ["Wooden", "Educational", "Magnetic", "Remote-Controlled", "Collectible", "Interlocking", "Giant", "Travel"],
+      "nouns": ["Building Blocks", "Jigsaw Puzzle", "Board Game", "Toy Car", "Soft Toy", "Card Game", "Science Kit", "Rubik's Cube", "Play Tent", "Art Easel", "Robot Kit", "Chess Set"]
+    },
+    {
+      "name": "Automotive",
+      "skuPrefix": "AUTO",
+      "priceBand": [149, 7999],
+      "modifiers": ["Universal", "All-Weather", "Microfibre", "Heavy-Duty", "Anti-Glare", "Waterproof", "Reinforced", "Compact"],
+      "nouns": ["Car Cover", "Seat Cushion", "Dashboard Camera", "Tyre Inflator", "Cleaning Kit", "Phone Mount", "Floor Mats", "Jump Starter", "Air Freshener", "Wiper Blades", "Boot Organiser", "Sunshade"]
+    },
+    {
+      "name": "Health & Wellness",
+      "skuPrefix": "HLTH",
+      "priceBand": [149, 6999],
+      "modifiers": ["Digital", "Clinically-Tested", "Plant-Based", "Sugar-Free", "Compact", "Rechargeable", "Ergonomic", "Precision"],
+      "nouns": ["Thermometer", "Blood Pressure Monitor", "Protein Powder", "Multivitamin", "Weighing Scale", "Massage Roller", "Pill Organiser", "First Aid Kit", "Posture Corrector", "Steam Inhaler", "Pulse Oximeter", "Knee Support"]
+    }
+  ]
+}

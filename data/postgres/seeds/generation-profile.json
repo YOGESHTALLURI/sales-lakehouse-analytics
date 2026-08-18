@@ -1,0 +1,141 @@
+{
+  "$comment": [
+    "Modelling parameters for the synthetic-data generator, kept separate from",
+    "the vocabulary so the shape of demand can be tuned without touching names.",
+    "",
+    "Volumes and the random seed are NOT here — they are operator settings and",
+    "live in .env (SEED_RANDOM_SEED, SEED_CUSTOMERS, SEED_PRODUCTS, SEED_ORDERS,",
+    "SEED_MONTHS, SEED_END_DATE). Everything in this file describes how a sale",
+    "behaves, and changing it changes the dataset even at an identical seed."
+  ],
+
+  "$commentCategoryDemand": [
+    "How often a category is chosen for an order line. Deliberately uneven:",
+    "uniform demand makes a sales-by-category chart look like noise, and hides",
+    "whether the aggregation is actually working."
+  ],
+  "categoryDemand": {
+    "Electronics": 18,
+    "Home & Kitchen": 14,
+    "Fashion": 16,
+    "Beauty & Personal Care": 11,
+    "Sports & Outdoors": 8,
+    "Books & Stationery": 7,
+    "Grocery & Gourmet": 13,
+    "Toys & Games": 5,
+    "Automotive": 4,
+    "Health & Wellness": 4
+  },
+
+  "$commentSeasonality": [
+    "Multiplier applied to an order's chance of landing in a given calendar",
+    "month, so the daily-revenue chart has a recognisable shape instead of a",
+    "flat band. The October/November peak stands in for the Indian festive",
+    "season; February is the post-festive trough."
+  ],
+  "monthlySeasonality": {
+    "1": 0.95,
+    "2": 0.8,
+    "3": 1.05,
+    "4": 1.0,
+    "5": 0.9,
+    "6": 0.95,
+    "7": 1.0,
+    "8": 1.1,
+    "9": 1.15,
+    "10": 1.55,
+    "11": 1.45,
+    "12": 1.2
+  },
+
+  "$commentWeekday": [
+    "Monday is 1, Sunday is 7. Weekend retail runs hotter, which gives the",
+    "time series a weekly rhythm a reviewer can actually see."
+  ],
+  "weekdayWeight": {
+    "1": 0.9,
+    "2": 0.9,
+    "3": 0.95,
+    "4": 1.0,
+    "5": 1.2,
+    "6": 1.35,
+    "7": 1.15
+  },
+
+  "$commentBasket": [
+    "Distribution of line counts per order. Most baskets are small; a long tail",
+    "of larger ones exercises multi-item order handling and makes average order",
+    "value non-trivial. Weights are relative, not percentages."
+  ],
+  "itemsPerOrder": {
+    "1": 42,
+    "2": 26,
+    "3": 16,
+    "4": 10,
+    "5": 6
+  },
+
+  "$commentQuantity": [
+    "Quantity per line. Overwhelmingly single units, which is what keeps",
+    "revenue driven by price mix rather than by quantity outliers."
+  ],
+  "quantityPerItem": {
+    "1": 62,
+    "2": 20,
+    "3": 10,
+    "4": 5,
+    "5": 3
+  },
+
+  "$commentRepeatCustomers": [
+    "Share of orders placed by the loyal minority. With repeatShare 0.55 and",
+    "loyalShare 0.2, one fifth of customers place roughly 55% of orders, so",
+    "top-customer analysis has something to find and dim_customer joins are",
+    "exercised unevenly."
+  ],
+  "repeatCustomers": {
+    "loyalShare": 0.2,
+    "repeatShare": 0.55
+  },
+
+  "$commentPricing": [
+    "A line's sale price is the catalogue price nudged within these bounds, so",
+    "unit_price_at_sale genuinely diverges from products.unit_price and the",
+    "warehouse's use of the historical price is observable rather than",
+    "theoretical. discountChance is the probability of any adjustment at all."
+  ],
+  "salePriceVariance": {
+    "discountChance": 0.35,
+    "minMultiplier": 0.8,
+    "maxMultiplier": 1.0
+  },
+
+  "$commentStatus": [
+    "Order status mix. Older orders are more likely to have reached delivered;",
+    "the generator applies these weights only to orders old enough to qualify.",
+    "cancelled stays rare but present, so status filtering has real data."
+  ],
+  "statusWeights": {
+    "settled": {
+      "delivered": 74,
+      "shipped": 12,
+      "confirmed": 8,
+      "cancelled": 6
+    },
+    "recent": {
+      "pending": 34,
+      "confirmed": 30,
+      "shipped": 24,
+      "delivered": 8,
+      "cancelled": 4
+    },
+    "recentWindowDays": 21
+  },
+
+  "$commentInactiveProducts": [
+    "Share of the catalogue retired after launch. Inactive products may not be",
+    "added to new orders but must keep their historical sales, which is exactly",
+    "the case that proves unit_price_at_sale and ON DELETE RESTRICT matter."
+  ],
+  "inactiveProductShare": 0.08
+}

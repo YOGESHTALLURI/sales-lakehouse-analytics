@@ -106,7 +106,16 @@ jobs:
         # migrations twice and the schema is not reproducible.
         run: npm run migrate --workspace @sales-lakehouse/api
 
+      - name: Seed the database
+        # Proves the documented command works on Linux, and that the dataset
+        # PostgreSQL accepts is the same one generated on a developer's machine.
+        run: npm run seed --workspace @sales-lakehouse/api
+
+      - name: Re-seed
+        # Truncate-then-insert: a second run must replace the data, not double it.
+        run: npm run seed --workspace @sales-lakehouse/api
+
       - name: Integration tests
         # Each spec provisions its own throwaway database, so these are
-        # unaffected by the migrations applied above.
+        # unaffected by the migrations and seed applied above.
         run: npm run test:integration --workspace @sales-lakehouse/api

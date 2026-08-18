@@ -14,9 +14,11 @@ RUN npm ci --include-workspace-root --workspace @sales-lakehouse/api
 FROM deps AS dev
 WORKDIR /app
 COPY apps/api apps/api
-# Migrations keep their repository-relative location, so the path the runner
-# resolves from the package root is identical inside and outside the container.
-COPY data/postgres/migrations data/postgres/migrations
+# Migrations and seed assets keep their repository-relative location, so the
+# paths resolved from the package root are identical inside and outside the
+# container. Copied as one directory so a new asset type does not silently go
+# missing from the image the way seeds/ did.
+COPY data/postgres data/postgres
 ENV NODE_ENV=development
 EXPOSE 4000
 WORKDIR /app/apps/api
