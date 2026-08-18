@@ -10,8 +10,8 @@ This document is deliberately written before application code. It is the impleme
 
 - GitHub repository: <https://github.com/YOGESHTALLURI/sales-lakehouse-analytics>
 - Default branch: `main`
-- Current local state: Git is initialized, `origin` is configured against the repository above, and the Phase 0 documentation commit is published on `main`. Phase 1 is in progress on `chore/project-foundation`.
-- Phase 0 committed planning material only. The implementation folder structure, Compose skeleton and contracts are created in Phase 1, on that feature branch.
+- Current local state: Phases 0 and 1 are merged into `main`. Phase 2 is in progress on `feat/operational-application`.
+- Phase 0 committed planning material only. Phase 1 added the folder structure, the Compose skeleton, the environment contract, the API and architecture contracts, and the health endpoint. Phase 2 adds continuous integration, the OLTP schema, the synthetic-data generator and the operational APIs.
 
 ### Non-negotiable engineering goals
 
@@ -262,7 +262,7 @@ The candidate owns every dataset. The generator must be deterministic: a documen
 ### Phase 6 — Quality, packaging and handoff
 
 1. Finish Compose images, health checks, named volumes and first-run instructions.
-2. Add CI lint/typecheck/unit tests and the integration pipeline test.
+2. Extend CI with the end-to-end pipeline test and any remaining lint steps. CI itself was brought forward to Phase 2 — a workflow added in the final phase validates none of the phases it was not watching.
 3. Finalize README, architecture diagram, decision records, deployment guide and demo script.
 4. Test from a clean clone/volumes and record the result.
 
@@ -280,7 +280,12 @@ The candidate owns every dataset. The generator must be deterministic: a documen
 | End-to-end | Seed → PostgreSQL → MinIO Parquet → DuckDB → analytics API → dashboard-ready responses. |
 | Smoke/demo | Fresh Compose startup, one manually created sale, one pipeline run and dashboard refresh. |
 
-CI runs static checks and fast tests on each push. A scheduled/full integration test may use Compose because it needs all local services.
+CI runs on every push to every branch, from Phase 2 onward, in two jobs:
+
+- **static-checks** — typecheck, unit tests, `npm audit`, the OpenAPI contract lint and `docker compose config`. Needs no services, so it fails fast.
+- **integration** — PostgreSQL as a service container, the documented `npm run migrate` command applied to a clean database and then re-applied to prove it is a no-op, followed by the database integration suite.
+
+Unit specs must never require a running service; anything that does belongs in `tests/integration/` and provisions its own throwaway database. The full end-to-end pipeline test arrives with Phase 3 and may use Compose, because it needs every local service.
 
 ## 11. Docker Compose and local development
 
@@ -339,11 +344,11 @@ Granularity is carried by **commits inside** the branch, not by branch count —
 | Branch | Phase | Scope | Merge evidence |
 |---|---|---|---|
 | `chore/project-foundation` | 1 | Repository folders, Compose skeleton, environment contract, API/data contracts, health endpoint | Merged. Compose validates; OpenAPI lints; health endpoint verified live. |
-| `feat/operational-application` | 2 | PostgreSQL migrations, deterministic synthetic-data generator, customer/product/order APIs | Fresh migration succeeds; seed is repeatable; API integration tests pass. |
+| `feat/operational-application` | 2 | GitHub Actions CI, PostgreSQL migrations, deterministic synthetic-data generator, customer/product/order APIs | Fresh migration succeeds; seed is repeatable; API integration tests pass. |
 | `feat/lake-and-warehouse-pipeline` | 3 | PostgreSQL extract, immutable run-partitioned Parquet and manifests in MinIO, DuckDB dimensions/facts, quality checks, atomic publish | Object/manifest validation; warehouse query and end-to-end pipeline tests. |
 | `feat/analytics-api` | 4 | DuckDB-backed analytics endpoints and pipeline run/status control | API/warehouse contract tests; analytics proven unable to reach PostgreSQL. |
 | `feat/frontend` | 5 | Sales-management pages, analytics dashboard, pipeline-control panel | UI build, API smoke tests and the end-to-end demo. |
-| `chore/quality-and-delivery` | 6 | CI, Docker hardening, documentation, decision records and deployment guide | Clean-clone Compose smoke test. |
+| `chore/quality-and-delivery` | 6 | Docker hardening, CI extension for the end-to-end pipeline test, documentation, decision records and deployment guide | Clean-clone Compose smoke test. |
 
 Within a branch, stop and commit at each coherent slice rather than at the end. Phase 2, for example, lands as schema → generator → customers/products → orders, each with its own tests.
 

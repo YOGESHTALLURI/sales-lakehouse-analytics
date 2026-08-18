@@ -1,0 +1,112 @@
+name: CI
+
+# Runs on every branch, not just main, so a phase is validated while it is being
+# built rather than after it has already been merged.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+
+# A newer push to the same branch makes the previous run irrelevant.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  # Everything that needs no running service. Fast, so it fails first.
+  static-checks:
+    name: Typecheck, unit tests and contracts
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install workspace
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Audit production and development dependencies
+        run: npm audit --audit-level=high
+
+      - name: Validate the API contract
+        run: npx --yes @redocly/cli@1 lint docs/api/openapi.yaml
+
+      - name: Validate the Compose contract
+        # compose.yaml fails fast on missing required variables, so the
+        # environment contract has to be present for this to mean anything.
+        run: |
+          cp .env.example .env
+          docker compose config --quiet
+
+  # Anything that needs a real PostgreSQL. Runs it as a service container rather
+  # than through Compose: the runner only needs the database, not the whole stack.
+  integration:
+    name: Migrations and database integration
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: sales
+          POSTGRES_USER: sales_app
+          POSTGRES_PASSWORD: ci_local_password
+        ports:
+          # 55432 matches the documented host port, so tests need no CI-specific
+          # configuration to find the database.
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U sales_app -d sales"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    env:
+      POSTGRES_DB: sales
+      POSTGRES_USER: sales_app
+      POSTGRES_PASSWORD: ci_local_password
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 55432
+      POSTGRES_HOST_PORT: 55432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install workspace
+        run: npm ci
+
+      - name: Apply migrations to a clean database
+        # Proves the documented command works, not only the library behind it.
+        run: npm run migrate --workspace @sales-lakehouse/api
+
+      - name: Re-apply migrations
+        # A second run must be a no-op. If it is not, the runner is applying
+        # migrations twice and the schema is not reproducible.
+        run: npm run migrate --workspace @sales-lakehouse/api
+
+      - name: Integration tests
+        # Each spec provisions its own throwaway database, so these are
+        # unaffected by the migrations applied above.
+        run: npm run test:integration --workspace @sales-lakehouse/api

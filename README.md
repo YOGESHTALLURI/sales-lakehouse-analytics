@@ -45,7 +45,7 @@ feature branch and merges to `main` only after its checks pass.
 |---|---|---|
 | 0 | Repository and implementation plan | Complete |
 | 1 | Foundation: folders, Compose skeleton, environment and API contracts, health endpoint | Complete |
-| 2 | Operational application: migrations, synthetic data, customer/product/order APIs | Not started |
+| 2 | Operational application: migrations, synthetic data, customer/product/order APIs | In progress |
 | 3 | Lake and warehouse pipeline | Not started |
 | 4 | Analytics and pipeline-control APIs | Not started |
 | 5 | Frontend: sales pages and analytics dashboard | Not started |
@@ -53,6 +53,19 @@ feature branch and merges to `main` only after its checks pass.
 
 Commands below are marked with the phase that makes them work. Anything marked
 as a later phase is not yet runnable from this commit.
+
+## Continuous integration
+
+[GitHub Actions](.github/workflows/ci.yml) runs on every push to every branch, in
+two jobs:
+
+- **static-checks** — typecheck, unit tests, `npm audit`, OpenAPI contract lint
+  and `docker compose config`. No services required, so it fails fast.
+- **integration** — PostgreSQL as a service container; applies `npm run migrate`
+  to a clean database, re-applies it to prove the second run is a no-op, then
+  runs the database integration suite.
+
+Every step is a command you can run locally, listed under [Commands](#commands).
 
 ## Prerequisites
 
@@ -116,9 +129,9 @@ npx @redocly/cli@1 lint docs/api/openapi.yaml   # validate the API contract
 npm run typecheck                     # TypeScript across the workspace
 npm test                              # Vitest across the workspace
 
-# Phase 2 — operational application (not yet available)
-docker compose exec api npm run migrate
-docker compose exec api npm run seed
+# Phase 2 — operational application
+docker compose exec api npm run migrate   # apply OLTP schema migrations
+docker compose exec api npm run seed      # not yet available
 
 # Phase 3 — pipeline (not yet available)
 docker compose run --rm etl python -m etl.run_pipeline
@@ -159,6 +172,7 @@ npm install                                    # once, from the repository root
 npm run typecheck                              # TypeScript, all workspaces
 npm test                                       # Vitest, all workspaces
 npm test --workspace @sales-lakehouse/api      # API only (Vitest + Supertest)
+npm run test:integration --workspace @sales-lakehouse/api   # needs docker compose up -d postgres
 docker compose run --rm etl python -m pytest   # pytest (from Phase 3)
 ```
 
