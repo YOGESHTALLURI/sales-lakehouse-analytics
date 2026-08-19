@@ -49,6 +49,33 @@ edited in place.
 - **Pipeline control** — start a run from the UI and watch it move through
   queued → running → succeeded/failed, with row counts and lake location
 
+## API endpoints
+
+Every request the React frontend makes to the Express API, in one place — the
+UI has no other server it talks to.
+
+| Method | Endpoint | Used for |
+|---|---|---|
+| `GET` | `/health` | Startup readiness check |
+| `GET` | `/api/customers` | List customers (paginated) |
+| `POST` | `/api/customers` | Create a customer |
+| `GET` | `/api/products` | List products (paginated, filterable) |
+| `POST` | `/api/products` | Create a product |
+| `GET` | `/api/orders` | List orders (paginated, filterable) |
+| `POST` | `/api/orders` | Create a multi-item order |
+| `POST` | `/api/pipeline/run` | Start a pipeline run |
+| `GET` | `/api/pipeline/status` | Poll the current and last-successful run |
+| `GET` | `/api/analytics/revenue` | KPI cards on the dashboard |
+| `GET` | `/api/analytics/sales-by-product` | Category and top-product charts |
+| `GET` | `/api/analytics/sales-by-city` | City breakdown |
+| `GET` | `/api/analytics/daily-sales` | Daily revenue trend chart |
+
+The full request/response shapes, validation rules and error codes are in
+[docs/api/openapi.yaml](docs/api/openapi.yaml). In development the frontend
+calls these as relative paths and Vite proxies them to the API; in the Docker
+build, nginx does the same — so the browser never talks cross-origin and no
+backend URL is compiled into the bundle.
+
 ## Stack
 
 | Layer | Choice |
