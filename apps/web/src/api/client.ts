@@ -31,11 +31,12 @@ import type {
  */
 
 /**
- * Fixtures are on unless explicitly disabled, because `/api/analytics/*` and
- * `/api/pipeline/*` do not exist until Phases 3 and 4 merge. Setting
- * `VITE_API_FIXTURES=0` is the whole switch — no other line changes.
+ * Fixtures are off unless explicitly requested. `/api/analytics/*` and
+ * `/api/pipeline/*` are live now that Phases 3 and 4 are merged, so the default
+ * is the real backend. Setting `VITE_API_FIXTURES=1` is the whole switch back to
+ * fixtures — no other line changes.
  */
-export const USING_FIXTURES = import.meta.env.VITE_API_FIXTURES !== '0';
+export const USING_FIXTURES = import.meta.env.VITE_API_FIXTURES === '1';
 
 const transport: Transport = USING_FIXTURES ? fixtureTransport : httpTransport;
 

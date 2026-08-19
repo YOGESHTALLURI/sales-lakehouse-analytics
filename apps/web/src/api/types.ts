@@ -196,7 +196,7 @@ export interface DailySales extends WarehouseMeta {
 
 // ── Pipeline ─────────────────────────────────────────────────────────────────
 
-export type PipelineRunStatus = 'running' | 'succeeded' | 'failed';
+export type PipelineRunStatus = 'queued' | 'running' | 'succeeded' | 'failed';
 
 export interface PipelineRowCounts {
   customers?: number;

@@ -9,6 +9,11 @@ interface RunPresentation {
 }
 
 const RUN_STATUS: Readonly<Record<PipelineRunStatus, RunPresentation>> = {
+  // The API does not execute the pipeline itself — it enqueues the run for the
+  // ETL worker, which usually claims it within a couple of seconds. `queued` and
+  // `running` are both "in flight" from here, so they share brand-toned pulsing
+  // treatment; only the label tells them apart.
+  queued: { label: 'Queued', tone: 'brand' },
   running: { label: 'Running', tone: 'brand' },
   succeeded: { label: 'Succeeded', tone: 'positive' },
   failed: { label: 'Failed', tone: 'critical' },

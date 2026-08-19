@@ -18,18 +18,18 @@ npm run build
 
 ## Running against the API
 
-`GET /api/analytics/*` and `/api/pipeline/*` do not exist until Phases 3 and 4
-merge, so **the UI serves itself from contract fixtures by default**.
+Phases 3 and 4 are merged, so `/api/analytics/*` and `/api/pipeline/*` are live.
+**The UI talks to the real backend by default.**
 
 | `VITE_API_FIXTURES` | Behaviour |
 |---|---|
-| unset or `1` (default) | Everything is served from fixtures. No backend needed. |
-| `0` | Every request goes to the real API through the dev proxy. |
+| unset or `0` (default) | Every request goes to the real API through the dev proxy. |
+| `1` | Everything is served from fixtures. No backend needed — useful for UI work in isolation. |
 
-Flipping that flag is the only change required when the analytics endpoints land.
-If anything else needs changing, the fixtures have drifted from the contract and
-[`tests/fixtures.test.ts`](tests/fixtures.test.ts) is the place that should have
-caught it.
+Fixtures were the default while Phases 3 and 4 were in flight; flipping the flag
+was the only change that migration needed, and
+[`tests/fixtures.test.ts`](tests/fixtures.test.ts) is what would have caught it
+if the fixtures had drifted from the contract in the meantime.
 
 Copy [`.env.example`](.env.example) to `.env.local` to override. `.env*` is
 git-ignored, so the default lives in code rather than in an uncommittable file.
@@ -41,7 +41,7 @@ directly. [`vite.config.ts`](vite.config.ts) proxies `/api` and `/health`
 instead, which means the app only ever uses relative paths and behaves the same
 in development and in a container. No host name is compiled into the bundle.
 
-To develop against the live backend:
+To develop against the live backend (the default — no flag needed):
 
 ```bash
 # from the repository root
@@ -49,7 +49,13 @@ docker compose up -d --build
 docker compose exec api npm run migrate
 docker compose exec api npm run seed
 
-VITE_API_FIXTURES=0 npm run dev --workspace @sales-lakehouse/web
+npm run dev --workspace @sales-lakehouse/web
+```
+
+To work on the UI without the backend running:
+
+```bash
+VITE_API_FIXTURES=1 npm run dev --workspace @sales-lakehouse/web
 ```
 
 ### Fixture scenarios

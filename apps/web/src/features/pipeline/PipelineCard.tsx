@@ -31,7 +31,7 @@ export function PipelineCard() {
             <Badge
               tone={runStatusTone(current.status)}
               dot
-              pulse={current.status === 'running'}
+              pulse={current.status === 'running' || current.status === 'queued'}
             >
               {runStatusLabel(current.status)}
             </Badge>

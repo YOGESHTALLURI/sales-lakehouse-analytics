@@ -55,7 +55,13 @@ export function PipelineProvider({ children }: { children: ReactNode }) {
   const [startError, setStartError] = useState<unknown>(undefined);
   const [publishToken, setPublishToken] = useState(0);
 
-  const isRunning = data?.current?.status === 'running';
+  // The API enqueues a run rather than executing it inline (running the ETL
+  // in-process would put Python in the Node API, and starting a container would
+  // need the Docker socket). A run therefore starts `queued` and moves to
+  // `running` once the worker claims it — both count as active here, or the
+  // button would stay enabled and polling would not start for the queued window.
+  const currentStatus = data?.current?.status;
+  const isRunning = currentStatus === 'queued' || currentStatus === 'running';
 
   // Poll only while a run is active. The interval is torn down when the run
   // settles and when this provider unmounts.

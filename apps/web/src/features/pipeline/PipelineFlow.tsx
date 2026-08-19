@@ -22,9 +22,19 @@ export interface PipelineFlowProps {
   status: PipelineRunStatus | undefined;
 }
 
+/**
+ * `queued` and `running` are shown identically throughout this file: the
+ * contract reports one status for the whole run, so there is no per-stage
+ * signal that would justify a fourth visual state, and a queued run is still
+ * active from the user's point of view.
+ */
+function isActive(status: PipelineRunStatus | undefined): boolean {
+  return status === 'running' || status === 'queued';
+}
+
 export function PipelineFlow({ status }: PipelineFlowProps) {
   const succeeded = status === 'succeeded';
-  const running = status === 'running';
+  const running = isActive(status);
   const failed = status === 'failed';
 
   return (
@@ -73,14 +83,14 @@ function Connector({ status }: { status: PipelineRunStatus | undefined }) {
         className={cx(
           'flex size-5 shrink-0 items-center justify-center rounded-full border',
           status === 'succeeded' && 'border-positive-line bg-positive-surface text-positive',
-          status === 'running' && 'border-brand-line bg-brand-surface text-brand',
+          isActive(status) && 'border-brand-line bg-brand-surface text-brand',
           status === 'failed' && 'border-critical-line bg-critical-surface text-critical',
           !status && 'border-line bg-surface text-ink-faint',
         )}
       >
         {status === 'succeeded' ? (
           <Check className="size-3" strokeWidth={3} />
-        ) : status === 'running' ? (
+        ) : isActive(status) ? (
           <LoaderCircle className="size-3 animate-spin" strokeWidth={3} />
         ) : status === 'failed' ? (
           <X className="size-3" strokeWidth={3} />
@@ -97,7 +107,7 @@ function Rule({ status }: { status: PipelineRunStatus | undefined }) {
       className={cx(
         'h-px flex-1',
         status === 'succeeded' && 'bg-positive-line',
-        status === 'running' && 'bg-brand-line',
+        isActive(status) && 'bg-brand-line',
         status === 'failed' && 'bg-critical-line',
         !status && 'bg-line',
       )}

@@ -25,5 +25,11 @@ export default defineConfig({
     setupFiles: ['./tests/setup.ts'],
     include: ['tests/**/*.test.{ts,tsx}'],
     css: false,
+    // Component tests exercise the fixture transport directly (setup.ts calls
+    // resetFixtures) and must never depend on a reachable backend. Forcing this
+    // here keeps the suite hermetic regardless of which way VITE_API_FIXTURES
+    // defaults for `dev`/`build` — that default is a separate, deliberate
+    // decision made in src/api/client.ts.
+    env: { VITE_API_FIXTURES: '1' },
   },
 });

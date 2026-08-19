@@ -4,15 +4,15 @@
 #   cp .env.example .env
 #   docker compose up -d
 #
-# Phase 1 provisions the two stateful boundaries of the platform plus the API:
+# All phases are merged, so `docker compose up -d` starts the whole platform:
 #
-#   postgres  — OLTP system of record
-#   minio     — immutable raw data lake (S3-compatible)
-#   api       — Express service; only /health exists so far
-#
-# The `web` and `etl` services are introduced by the phases that own them (see
-# IMPLEMENTATION_PLAN.md §9) so that `docker compose up` succeeds at every point
-# in the repository history.
+#   postgres    — OLTP system of record
+#   minio       — immutable raw data lake (S3-compatible)
+#   api         — Express service: operational, analytics and pipeline-control endpoints
+#   web         — the React UI, built and served by nginx, which reverse-proxies
+#                 /api and /health to `api` so the browser never needs CORS
+#   etl-worker  — watches pipeline_runs for queued runs and executes them
+#   etl         — the batch job itself; run on demand, not part of `up` (see below)
 # =============================================================================
 
 name: sales-lakehouse
@@ -116,6 +116,31 @@ services:
       timeout: 5s
       retries: 6
       start_period: 20s
+    networks:
+      - sales-net
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: dev
+    container_name: sales-web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${WEB_HOST_PORT:-5173}:80"
+    healthcheck:
+      # 127.0.0.1, not localhost: nginx's default config binds 0.0.0.0 only, and
+      # Alpine's musl resolver tries ::1 first, so `localhost` here reliably
+      # reports unhealthy with a connection refused that has nothing to do with
+      # whether nginx is actually serving.
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1/index.html >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
     networks:
       - sales-net
 
