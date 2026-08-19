@@ -3,8 +3,8 @@
     python -m etl.run_pipeline          # claim a slot and run now
     python -m etl.worker                # execute runs queued by the API
 
-The order of operations is the contract described in IMPLEMENTATION_PLAN.md §5,
-and each step exists for a reason worth stating:
+The order of operations is deliberate, and each step exists for a reason worth
+stating:
 
     1. Claim the single active-run slot in PostgreSQL.
     2. Extract one consistent snapshot.

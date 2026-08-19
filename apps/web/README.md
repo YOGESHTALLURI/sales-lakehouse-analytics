@@ -87,8 +87,8 @@ dashboard *not* change, run the pipeline, watch it move.
 
 | Concern | Choice | Reason |
 |---|---|---|
-| Framework | React 19 + TypeScript | [IMPLEMENTATION_PLAN.md §3](../../IMPLEMENTATION_PLAN.md) |
-| Build | Vite | ” |
+| Framework | React 19 + TypeScript | Interactive forms, tables and a live dashboard; types keep API and chart data contracts explicit |
+| Build | Vite | Fast dev server, simple production build |
 | Charts | Recharts 3 | ” — v3 because v2's peer range excludes React 19 |
 | Styling | Tailwind CSS v4 | See the note below |
 | Icons | lucide-react | Outline set, tree-shaken per icon |
@@ -100,12 +100,7 @@ dashboard *not* change, run the pipeline, watch it move.
 
 ### The Tailwind decision
 
-[`docs/frontend-brief.md`](../../docs/frontend-brief.md) §4 says "no CSS
-framework". The repository owner asked for Tailwind explicitly, so this workspace
-uses it; the brief and the instruction disagree and this note exists so the
-divergence is not a surprise at review.
-
-The argument for it: every colour, radius, shadow and font token is declared once
+Every colour, radius, shadow and font token is declared once
 in [`src/styles/theme.css`](src/styles/theme.css) under Tailwind v4's `@theme`,
 and a hard-coded value in a component is then visibly wrong. Hand-written CSS
 applies no such pressure. Chart colours are consumed as `var(--color-chart-*)`

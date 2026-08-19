@@ -2,8 +2,7 @@
 
 This document describes the component boundaries, how data moves between them,
 the schemas at each layer, and the trade-offs behind each choice. It is the
-companion to [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md), which owns the
-build order, and to [docs/api/openapi.yaml](docs/api/openapi.yaml), which owns
+companion to [docs/api/openapi.yaml](docs/api/openapi.yaml), which owns
 the request/response contract.
 
 ## 1. Component boundaries

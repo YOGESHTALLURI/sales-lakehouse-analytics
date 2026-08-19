@@ -1,10 +1,12 @@
-# Contract requests from the frontend workstream
+# API contract notes from the frontend
 
-The backend workstream owns [`docs/api/openapi.yaml`](../../docs/api/openapi.yaml).
-Per [the frontend brief](../../docs/frontend-brief.md) §1, this file is where the
-UI asks for a change instead of editing the contract directly.
+[`docs/api/openapi.yaml`](../../docs/api/openapi.yaml) is the source of truth for
+the API. This file records places where the UI worked around a contract gap
+instead of editing the contract directly, so the workaround is not mistaken for
+an oversight.
 
-Nothing here blocks Phase 5. Each item states what the UI does today without it.
+Nothing here blocks the current UI. Each item states what it does today without
+the requested change.
 
 ---
 

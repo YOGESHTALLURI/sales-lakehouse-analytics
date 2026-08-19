@@ -8,8 +8,8 @@ import { useAsync } from '../../hooks/useAsync';
  * The contract exposes no categories endpoint and no facets, so this derives them
  * from one page at the documented maximum limit. That covers the catalogue as it
  * stands (100 products) but is not a general solution — see
- * apps/web/CONTRACT-REQUESTS.md, which asks the backend workstream for either a
- * categories endpoint or a facet on the product list.
+ * apps/web/CONTRACT-REQUESTS.md, which requests either a categories endpoint or
+ * a facet on the product list.
  */
 export function useCategories(): readonly string[] {
   const result = useAsync(

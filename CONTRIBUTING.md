@@ -1,16 +1,13 @@
 # Contributing
 
-This repository is built phase by phase against
-[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md). The plan is the contract: read
-the current phase before changing anything, and update the plan in the same
-branch if reality diverges from it.
+This repository is built one cohesive boundary at a time, each on its own
+branch, merged only once it is tested and verified.
 
 ## Branching
 
 - `main` holds integrated, verified history only. Never implement on `main`.
-- Every cohesive flow gets a short-lived branch cut from the latest `main`,
-  named after the branch map in the plan (§13) — for example
-  `chore/project-foundation`, `feat/oltp-schema`, `feat/warehouse-etl`.
+- Every cohesive flow gets a short-lived branch cut from the latest `main` —
+  for example `feat/oltp-schema`, `feat/warehouse-etl`, `fix/order-validation`.
 - One boundary per branch. Do not mix frontend, API and ETL changes without a
   genuine integration reason.
 - Corrective work after review goes on a narrowly named follow-up branch
@@ -57,7 +54,7 @@ after a pipeline run is the usual way generated data slips in.
 
 ## Working cadence
 
-1. Take the next smallest unchecked item in the current phase.
+1. Take the next smallest unchecked item on the branch.
 2. Implement only that item and its directly related tests and docs.
 3. Run the relevant verification.
 4. Inspect `git status` and `git diff`.

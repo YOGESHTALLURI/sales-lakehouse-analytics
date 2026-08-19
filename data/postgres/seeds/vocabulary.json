@@ -6,8 +6,7 @@
     "between versions and would silently alter the dataset on upgrade.",
     "",
     "Names and places are ordinary Indian retail vocabulary. No entry refers to",
-    "a real person, and no data here was downloaded — see IMPLEMENTATION_PLAN.md",
-    "section 8."
+    "a real person, and no data here was downloaded from an external source."
   ],
 
   "firstNames": [
